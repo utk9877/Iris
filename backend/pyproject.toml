@@ -7,6 +7,12 @@ requires-python = ">=3.11,<3.12"
 
 # NOTE: versions are intentionally left unpinned during scaffolding.
 # Run `uv lock` / `uv sync` once the environment is validated on Apple Silicon.
+#
+# The heavy ML/CV stack lives in the optional `ml` group below — it is NOT part
+# of the default install. Phases 0-1 (foundation, ingest, thumbs, grid) need only
+# the lean core here; install the ML stack with `uv sync --extra ml` at Phase 2.
+# This keeps the harness/CI fast and avoids blocking foundation work on the
+# paddlepaddle / insightface Apple-Silicon build issues flagged in ARCHITECTURE §10.
 dependencies = [
     # --- Web / API ---
     "fastapi",
@@ -20,20 +26,24 @@ dependencies = [
     "aiosqlite",
     "numpy",
     "pillow",
+    "blake3",               # content-addressing / file identity (Phase 1)
+]
 
-    # --- ML / CV inference ---
+[project.scripts]
+iris-sidecar = "iris.app:main"
+
+[project.optional-dependencies]
+# Heavy ML/CV inference stack. Install at Phase 2: `uv sync --extra ml`.
+ml = [
     "onnxruntime",          # CoreML execution provider ships in the macOS wheel
     "transformers",         # tokenizers + processors for CLIP / SigLIP
     "open-clip-torch",      # CLIP/SigLIP + LAION aesthetic predictor building blocks
     "insightface",          # SCRFD (detection) + ArcFace (recognition)
     "opencv-python-headless",
     "paddleocr",            # OCR (pulls paddlepaddle; verify Apple Silicon wheel)
-
-    # --- Vector search ---
-    "hnswlib",
+    "hnswlib",              # vector index (compiles from source on some platforms)
 ]
 
-[project.optional-dependencies]
 # Packaging the Python sidecar into a standalone binary.
 packaging = [
     "pyinstaller",
@@ -45,6 +55,7 @@ dev = [
     "pytest",
     "pytest-asyncio",
     "mypy",
+    "httpx",  # required by starlette/fastapi TestClient
 ]
 
 [build-system]
@@ -88,3 +99,8 @@ asyncio_mode = "auto"
 python_version = "3.11"
 strict = true
 files = ["src", "tests"]
+
+# Third-party packages without bundled type stubs.
+[[tool.mypy.overrides]]
+module = ["blake3.*", "aiosqlite.*"]
+ignore_missing_imports = true
