@@ -1,0 +1,59 @@
+# ---- Python / backend ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.uv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# PyInstaller
+*.spec.bak
+backend/build/
+backend/dist/
+
+# ---- Node / frontend ----
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.local
+
+# ---- Tauri / Rust ----
+frontend/src-tauri/target/
+frontend/src-tauri/gen/
+
+# ---- ML models & data (never committed; local-first) ----
+models/
+*.onnx
+*.pt
+*.pth
+*.safetensors
+
+# ---- App runtime data ----
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+data/
+index/
+thumbnails/
+cache/
+
+# ---- OS / editor ----
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
+
+# ---- Env ----
+.env
+.env.*
+!.env.example
