@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Iterator
+from typing import Annotated
 
-from fastapi import Request
+from fastapi import Depends, Request
 
 from iris.config import Settings
 from iris.db import connect
@@ -24,3 +25,7 @@ def get_db(request: Request) -> Iterator[sqlite3.Connection]:
         yield conn
     finally:
         conn.close()
+
+
+# Shared typed dependency for a per-request SQLite connection.
+DbDep = Annotated[sqlite3.Connection, Depends(get_db)]

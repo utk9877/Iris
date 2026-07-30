@@ -1,0 +1,145 @@
+/* Phase 1 layout. Theme-agnostic (uses translucent grays that read on light+dark). */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+}
+
+.app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 1rem;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.25);
+}
+.app-header h1 {
+  font-size: 1.1rem;
+  margin: 0 0.4rem 0 0;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.dot.ok {
+  background: #22c55e;
+}
+.dot.bad {
+  background: #ef4444;
+}
+.status {
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+.count {
+  margin-left: auto;
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+
+.scanbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1rem;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.25);
+  flex-wrap: wrap;
+}
+.scan-input {
+  flex: 1;
+  min-width: 220px;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.scan-btn {
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background: rgba(127, 127, 127, 0.12);
+  color: inherit;
+  cursor: pointer;
+}
+.scan-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.scan-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.scan-bar-track {
+  width: 160px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(127, 127, 127, 0.25);
+  overflow: hidden;
+}
+.scan-bar-fill {
+  height: 100%;
+  background: #3b82f6;
+  transition: width 0.3s ease;
+}
+.scan-progress-label {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+.scan-error {
+  color: #ef4444;
+  font-size: 0.8rem;
+}
+
+.grid-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 8px;
+}
+.grid-empty {
+  opacity: 0.6;
+  text-align: center;
+  margin-top: 3rem;
+}
+.grid-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: grid;
+}
+.cell {
+  height: 168px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(127, 127, 127, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cell-fallback {
+  font-size: 11px;
+  opacity: 0.5;
+  padding: 4px;
+  text-align: center;
+  word-break: break-all;
+}

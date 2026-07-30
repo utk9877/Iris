@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import sqlite3
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from iris import __version__, benchmarks
 from iris.config import Settings
 from iris.db import current_version
-from iris.dependencies import get_db
+from iris.dependencies import DbDep
 from iris.schemas import (
     BenchmarkOut,
     BenchmarkRunRequest,
@@ -21,8 +18,6 @@ from iris.schemas import (
 )
 
 router = APIRouter(tags=["system"])
-
-DbDep = Annotated[sqlite3.Connection, Depends(get_db)]
 
 _COUNT_TABLES = ("photos", "faces", "groups", "benchmarks")
 

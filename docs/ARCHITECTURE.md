@@ -18,6 +18,11 @@ Embeddings). Timestamps are Unix epoch `REAL`. Per-stage nullable `*_at` columns
 -- key/value meta: schema_version, model ids, memmap dims/dtype
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
+-- library source folders to scan (read-only; non-destructive). [migration 0002]
+CREATE TABLE roots (
+  id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, added_at REAL NOT NULL
+);
+
 CREATE TABLE photos (
   id            INTEGER PRIMARY KEY,
   path          TEXT NOT NULL UNIQUE,      -- absolute source path (never mutated)
@@ -42,6 +47,7 @@ CREATE TABLE photos (
   gps_lat       REAL,
   gps_lon       REAL,
   phash         INTEGER,                   -- 64-bit perceptual hash (near-dup)
+  sort_at       REAL,                      -- COALESCE(taken_at, mtime); keyset sort key [migration 0002]
   aesthetic     REAL,                      -- LAION score
   quality       REAL,                      -- technical (sharpness/exposure)
   embed_row     INTEGER,                   -- row index into clip memmap (nullable)
@@ -53,6 +59,7 @@ CREATE TABLE photos (
   updated_at    REAL NOT NULL
 );
 CREATE INDEX ix_photos_taken       ON photos(taken_at)           WHERE missing=0; -- timeline grid + keyset paging
+CREATE INDEX ix_photos_sort        ON photos(sort_at, id);       -- keyset grid pagination [migration 0002]
 CREATE INDEX ix_photos_dir         ON photos(dir);               -- folder filter
 CREATE INDEX ix_photos_hash        ON photos(content_hash);      -- exact-dup / re-scan identity
 CREATE INDEX ix_photos_camera      ON photos(camera_model);      -- camera filter
@@ -340,8 +347,8 @@ tier,next_cursor}`; `GET /search/suggest?q=`.
 
 - **Grid** — TanStack Virtual windowed grid over a flat `items` array from
   `useInfiniteQuery` keyed by `(filters, sort)`. Pages come from
-  `GET /photos?cursor=…` using **keyset cursors** `(taken_at,id)` (not offset) for
-  stability under inserts. Total from `GET /photos/count` sizes the scrollbar; the
+  `GET /photos?cursor=…` using **keyset cursors** `(sort_at,id)` — where
+  `sort_at = COALESCE(taken_at, mtime)` (not offset) — for stability under inserts. Total from `GET /photos/count` sizes the scrollbar; the
   virtualizer's visible range drives next-page fetch (overscan ~600 px).
 - **Windowed client store** — only materialized pages are kept; far pages are LRU-
   evicted to bound memory at 100k. A date-bucket index endpoint backs the scrubber

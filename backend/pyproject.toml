@@ -26,6 +26,7 @@ dependencies = [
     "aiosqlite",
     "numpy",
     "pillow",
+    "pillow-heif",          # HEIC/HEIF decode (registers a Pillow opener)
     "blake3",               # content-addressing / file identity (Phase 1)
 ]
 
@@ -102,5 +103,5 @@ files = ["src", "tests"]
 
 # Third-party packages without bundled type stubs.
 [[tool.mypy.overrides]]
-module = ["blake3.*", "aiosqlite.*"]
+module = ["blake3.*", "aiosqlite.*", "pillow_heif.*"]
 ignore_missing_imports = true

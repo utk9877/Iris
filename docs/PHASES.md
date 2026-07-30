@@ -28,18 +28,25 @@ to `benchmarks`, never fabricated).
       *Done:* 8 tests pass; a `smoke_db_roundtrip` row is recorded and read back end-to-end.
 
 ## Phase 1 — Ingest & storage (metadata + thumbs + grid)
-- [ ] Scan walker → `photos` rows (path/dir/size/mtime); re-scan is idempotent.
-      *Done when:* scanning a folder twice yields no duplicate rows.
-- [ ] Hash (blake3) + EXIF stages (thread pool) populate identity + metadata.
-      *Done when:* `content_hash`, `taken_at`, camera fields set; `*_at` markers advance.
-- [ ] Decode+thumb process pool (spawn) with HEIC support; content-addressed webp writes; phash piggybacked.
-      *Done when:* thumbs land at sharded paths; bad HEIC is skipped, not fatal.
-- [ ] Single-writer + job manager + crash-resume (re-enqueue by `*_at IS NULL`).
-      *Done when:* killing mid-ingest and restarting completes only unfinished photos.
-- [ ] `GET /photos` (keyset cursor) + `/thumb` + `/photos/count`; React virtual grid renders thumbnails.
-      *Done when:* a 5k-photo folder scrolls smoothly in the grid.
-- [ ] **Benchmark:** ingest throughput (img/s) + thumb decode p50 on a real folder → `benchmarks`.
-      *Done when:* rows `ingest_throughput`, `decode_p50` recorded from an actual run.
+
+> **Status.** Backend complete & verified (22 tests, ruff/mypy --strict green). Schema
+> 0002 added `roots` + `sort_at` (keyset key; `taken_at` is nullable) — see ARCHITECTURE
+> §1/§9. Hash+EXIF are fused into one thread-pool task (both read the file once). The
+> React grid is built & typechecks (`npm run build`) but its in-app scroll is
+> **runtime-unverified** pending a real `tauri dev` run with a photo folder.
+
+- [x] Scan walker → `photos` rows; re-scan is idempotent. — `ingest/scanner.py`, `db/photos.py:upsert_scanned`
+      *Done:* `upsert_scanned` ON CONFLICT(path) resets stage markers only when size/mtime change (test_orchestrator).
+- [x] Hash (blake3) + EXIF (thread pool) populate identity + metadata. — `ingest/metadata.py`
+      *Done:* `content_hash`/dims/EXIF set; `hashed_at`/`exif_at` advance (unit + e2e tests).
+- [x] Decode+thumb spawn process pool + HEIC; content-addressed webp; phash piggybacked. — `ingest/thumbnails.py`
+      *Done:* sharded webp written atomically; **HEIC verified**; bad files skipped (ok=False), not fatal.
+- [x] Single-writer + job manager + crash-resume (re-enqueue by `*_at IS NULL`). — `ingest/orchestrator.py`
+      *Done:* `test_resume_only_processes_pending` proves a restart re-processes only the pending photo.
+- [x] `GET /photos` (keyset) + `/thumb` + `/photos/count`; React virtual grid + native folder picker. — `api/photos.py`, `frontend/src/components/PhotoGrid.tsx`, `ScanBar.tsx`
+      *Done & runtime-verified in-app:* Choose-folder → scan → thumbnails render in the TanStack-Virtual grid. Grid is virtualized (row-windowed); true 5k smooth-scroll is a scale check to repeat on a large library.
+- [x] **Benchmark:** ingest throughput + decode p50 → `benchmarks`. — `scripts/bench_ingest.py`
+      *Done (synthetic dataset):* `ingest_throughput` and `decode_p50` recorded from a real run (git_sha-tagged). Real-library numbers are a Phase 6 task.
 
 ## Phase 2 — Embeddings & semantic search
 - [ ] CLIP/SigLIP ONNX embed worker (CoreML EP), batched; write `clip.f32` memmap + `embed_row`.

@@ -23,6 +23,12 @@ def _discover() -> list[tuple[int, Path]]:
     return found
 
 
+def latest_version() -> int:
+    """Highest migration version available on disk (0 if there are none)."""
+    discovered = _discover()
+    return discovered[-1][0] if discovered else 0
+
+
 def current_version(conn: sqlite3.Connection) -> int:
     """Applied schema version, or 0 if the database is uninitialized."""
     try:

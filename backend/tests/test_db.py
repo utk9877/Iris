@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from iris.config import Settings
-from iris.db import apply_migrations, connect, current_version
+from iris.db import apply_migrations, connect, current_version, latest_version
 
 EXPECTED_TABLES = {
     "meta",
@@ -27,8 +27,8 @@ def test_migrations_apply_and_set_version(settings: Settings) -> None:
     try:
         assert current_version(conn) == 0
         version = apply_migrations(conn)
-        assert version == 1
-        assert current_version(conn) == 1
+        assert version == latest_version()
+        assert current_version(conn) == latest_version()
     finally:
         conn.close()
 
@@ -37,9 +37,9 @@ def test_migrations_are_idempotent(settings: Settings) -> None:
     settings.ensure_dirs()
     conn = connect(settings.db_path, busy_timeout_ms=settings.sqlite_busy_timeout_ms)
     try:
-        assert apply_migrations(conn) == 1
+        assert apply_migrations(conn) == latest_version()
         # Re-running applies nothing and does not error.
-        assert apply_migrations(conn) == 1
+        assert apply_migrations(conn) == latest_version()
     finally:
         conn.close()
 

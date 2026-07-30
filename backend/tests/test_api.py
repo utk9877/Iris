@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from iris.db import latest_version
+
 
 def test_index_returns_html(client: TestClient) -> None:
     resp = client.get("/")
@@ -31,7 +33,7 @@ def test_meta(client: TestClient) -> None:
     resp = client.get("/meta")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["schema_version"] == 1
+    assert body["schema_version"] == latest_version()
     # Fresh library: schema exists but nothing ingested yet.
     assert body["counts"]["photos"] == 0
     assert "benchmarks" in body["counts"]

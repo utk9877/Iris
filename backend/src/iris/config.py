@@ -8,6 +8,7 @@ touched. Every value can be overridden with an ``IRIS_``-prefixed env var, e.g.
 
 from __future__ import annotations
 
+import os
 import sys
 from functools import lru_cache
 from pathlib import Path
@@ -42,6 +43,10 @@ class Settings(BaseSettings):
     # --- Database ---
     # SQLite busy timeout (ms) — see ARCHITECTURE §1/§10 (single-writer + WAL).
     sqlite_busy_timeout_ms: int = 5000
+
+    # --- Ingest (ARCHITECTURE §2) ---
+    metadata_workers: int = 8  # thread pool for hash + EXIF (IO-light)
+    decode_workers: int = 0  # spawn process pool for decode+thumb; 0 -> os.cpu_count()
 
     # --- Cache limits (ARCHITECTURE §3), config knobs surfaced early ---
     thumb_max_gb: float = 8.0
@@ -97,6 +102,10 @@ class Settings(BaseSettings):
         """Create the app data directory tree if missing (idempotent)."""
         for directory in self.all_dirs():
             directory.mkdir(parents=True, exist_ok=True)
+
+    def resolved_decode_workers(self) -> int:
+        """Decode process-pool size, resolving 0 to the CPU count (min 1)."""
+        return self.decode_workers if self.decode_workers > 0 else (os.cpu_count() or 4)
 
 
 @lru_cache(maxsize=1)

@@ -38,3 +38,63 @@ class BenchmarkRunResponse(BaseModel):
     suite: str
     recorded_ids: list[int]
     rows: list[BenchmarkOut]
+
+
+# --- Library / ingest (ARCHITECTURE §8) ---
+
+
+class RootIn(BaseModel):
+    path: str
+
+
+class RootOut(BaseModel):
+    id: int
+    path: str
+    added_at: float
+
+
+class ScanResponse(BaseModel):
+    job_id: int
+    running: bool
+
+
+class JobOut(BaseModel):
+    id: int
+    kind: str
+    state: str
+    target: str | None
+    total: int
+    done: int
+    errored: int
+    checkpoint: str | None
+    error_msg: str | None
+    started_at: float | None
+    updated_at: float | None
+    finished_at: float | None
+
+
+class IngestStatus(BaseModel):
+    running: bool
+    job: JobOut | None
+
+
+# --- Photos / grid ---
+
+
+class PhotoOut(BaseModel):
+    id: int
+    filename: str
+    sort_at: float | None
+    taken_at: float | None
+    width: int | None
+    height: int | None
+    has_thumb: bool
+
+
+class PhotoPage(BaseModel):
+    items: list[PhotoOut]
+    next_cursor: str | None
+
+
+class PhotoCount(BaseModel):
+    count: int

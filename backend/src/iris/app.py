@@ -15,9 +15,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from iris import __version__
+from iris.api.ingest import router as ingest_router
+from iris.api.library import router as library_router
+from iris.api.photos import router as photos_router
 from iris.api.system import router as system_router
 from iris.config import Settings, get_settings
 from iris.db import apply_migrations, connect
+from iris.ingest.orchestrator import IngestManager
 
 # Origins the Tauri webview uses. In `tauri dev` the frontend is served by Vite at
 # localhost:1420 and calls the sidecar cross-origin; in a packaged build the webview
@@ -56,6 +60,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             conn.close()
         app.state.settings = resolved
         app.state.schema_version = schema_version
+        app.state.ingest = IngestManager(resolved)
         yield
 
     app = FastAPI(title="Iris", version=__version__, lifespan=lifespan)
@@ -67,6 +72,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(system_router)
+    app.include_router(library_router)
+    app.include_router(ingest_router)
+    app.include_router(photos_router)
     return app
 
 
