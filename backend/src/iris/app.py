@@ -18,9 +18,11 @@ from iris import __version__
 from iris.api.ingest import router as ingest_router
 from iris.api.library import router as library_router
 from iris.api.photos import router as photos_router
+from iris.api.search import router as search_router
 from iris.api.system import router as system_router
 from iris.config import Settings, get_settings
 from iris.db import apply_migrations, connect
+from iris.embeddings.service import EmbeddingService
 from iris.ingest.orchestrator import IngestManager
 
 # Origins the Tauri webview uses. In `tauri dev` the frontend is served by Vite at
@@ -60,7 +62,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             conn.close()
         app.state.settings = resolved
         app.state.schema_version = schema_version
-        app.state.ingest = IngestManager(resolved)
+        embeddings = EmbeddingService(resolved)
+        app.state.embeddings = embeddings
+        app.state.ingest = IngestManager(resolved, embeddings)
         yield
 
     app = FastAPI(title="Iris", version=__version__, lifespan=lifespan)
@@ -75,6 +79,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(library_router)
     app.include_router(ingest_router)
     app.include_router(photos_router)
+    app.include_router(search_router)
     return app
 
 
@@ -122,7 +127,18 @@ def main() -> None:
         schema_version = int(getattr(app.state, "schema_version", 0))
         _emit_ready(settings.host, port, schema_version)
 
+    def watch_parent() -> None:
+        # Exit if our parent (the Tauri shell) dies, however it dies — a terminal
+        # Ctrl+C doesn't run Tauri's exit handler, which otherwise orphans us.
+        initial = os.getppid()
+        while True:
+            time.sleep(2.0)
+            if os.getppid() != initial:  # reparented -> parent gone
+                os._exit(0)
+
     threading.Thread(target=announce, daemon=True).start()
+    if os.environ.get("IRIS_EXIT_WITH_PARENT") == "1":
+        threading.Thread(target=watch_parent, daemon=True).start()
     try:
         server.run()
     except KeyboardInterrupt:  # pragma: no cover - signal path

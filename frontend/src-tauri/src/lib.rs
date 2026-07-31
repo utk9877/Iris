@@ -68,6 +68,9 @@ fn spawn_sidecar() -> std::io::Result<Child> {
     command
         .args(["--port", &port.to_string()])
         .current_dir(&backend_dir)
+        // The sidecar exits itself if we die without running the exit handler
+        // (e.g. Ctrl+C in the dev terminal), so it never orphans.
+        .env("IRIS_EXIT_WITH_PARENT", "1")
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()

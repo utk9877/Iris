@@ -98,3 +98,34 @@ class PhotoPage(BaseModel):
 
 class PhotoCount(BaseModel):
     count: int
+
+
+# --- Search (ARCHITECTURE §4/§8) ---
+
+
+class SearchFilters(BaseModel):
+    folder: str | None = None
+    date_from: float | None = None
+    date_to: float | None = None
+
+
+class SearchRequest(BaseModel):
+    query: str
+    filters: SearchFilters | None = None
+    limit: int = 100
+
+
+class SearchItem(BaseModel):
+    id: int
+    filename: str
+    sort_at: float | None
+    taken_at: float | None
+    width: int | None
+    height: int | None
+    has_thumb: bool
+    score: float
+
+
+class SearchResponse(BaseModel):
+    tier: str
+    items: list[SearchItem]

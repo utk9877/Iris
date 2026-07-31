@@ -54,9 +54,19 @@ function Cell({ api, photo }: { api: Api; photo: Photo }) {
   );
 }
 
-export function PhotoGrid({ api, reloadKey }: { api: Api; reloadKey: number }) {
+export function PhotoGrid({
+  api,
+  reloadKey,
+  searchItems,
+}: {
+  api: Api;
+  reloadKey: number;
+  searchItems?: Photo[] | null;
+}) {
   const parentRef = useRef<HTMLDivElement>(null);
-  const { items, loadMore } = useInfinitePhotos(api, reloadKey);
+  const infinite = useInfinitePhotos(api, reloadKey);
+  const searching = searchItems != null;
+  const items = searching ? searchItems : infinite.items;
   const [width, setWidth] = useState(0);
 
   useEffect(() => {
@@ -79,14 +89,17 @@ export function PhotoGrid({ api, reloadKey }: { api: Api; reloadKey: number }) {
 
   const virtualRows = rowVirtualizer.getVirtualItems();
   useEffect(() => {
+    if (searching) return; // search results are a fixed set, no pagination
     const last = virtualRows[virtualRows.length - 1];
-    if (last && last.index >= rowCount - 3) void loadMore();
-  }, [virtualRows, rowCount, loadMore]);
+    if (last && last.index >= rowCount - 3) void infinite.loadMore();
+  }, [virtualRows, rowCount, infinite.loadMore, searching]);
 
   return (
     <div ref={parentRef} className="grid-scroll">
       {items.length === 0 ? (
-        <p className="grid-empty">No photos yet — add a folder above and scan.</p>
+        <p className="grid-empty">
+          {searching ? "No matches." : "No photos yet — add a folder above and scan."}
+        </p>
       ) : (
         <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative" }}>
           {virtualRows.map((vr) => {

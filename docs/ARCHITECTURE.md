@@ -70,7 +70,8 @@ CREATE INDEX ix_photos_need_faces  ON photos(id) WHERE faces_at IS NULL;
 CREATE INDEX ix_photos_need_ocr    ON photos(id) WHERE ocr_at   IS NULL;
 
 -- Embeddings: NOT stored here. photos.embed_row -> row in embeddings/clip.f32 memmap.
--- Why: 100k x 768 f32 ~= 300 MB; as SQLite BLOBs it bloats the DB, evicts the page
+-- Why: 100k x 512 f32 (CLIP ViT-B/32, the shipped default; 768 for ViT-L) ~= 200 MB;
+-- as SQLite BLOBs it bloats the DB, evicts the page
 -- cache, and cannot be bulk-scanned as a contiguous matrix. A memmap gives zero-copy
 -- numpy views for brute-force matmul and feeds hnswlib directly. A small sidecar
 -- meta file (dim, count, dtype, model id) tracks layout; free rows are compacted lazily.
@@ -378,6 +379,10 @@ tier,next_cursor}`; `GET /search/suggest?q=`.
 4. **CoreML EP coverage/throughput** (op fallbacks to CPU, ANE quirks, uncertain
    batching gains). *Fallback:* benchmark EP-vs-CPU early, config to select EP, pin
    known-good opsets, keep CPU EP fallback.
+   *Observed (Phase 2):* the CLIP **vision** encoder runs on CoreML (~115 img/s on
+   B/32), but the **text** encoder hard-fails on CoreML at inference (value-dependent,
+   not caught by session creation) → text is pinned to CPU. Per-encoder provider
+   selection is the mitigation.
 5. **Filtered-HNSW latency/recall + SQLite single-writer during ingest.**
    *Fallback:* the three-tier strategy itself + empirically tuned thresholds;
    precomputed filter bitmaps; batched commits + `busy_timeout` for the writer;

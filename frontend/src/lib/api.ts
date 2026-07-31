@@ -19,6 +19,9 @@ export type Photo = {
 
 export type PhotoPage = { items: Photo[]; next_cursor: string | null };
 
+export type SearchItem = Photo & { score: number };
+export type SearchResponse = { tier: string; items: SearchItem[] };
+
 export type Job = {
   id: number;
   kind: string;
@@ -65,6 +68,12 @@ export function makeApi(baseUrl: string) {
       }),
     scan: () => json<{ job_id: number; running: boolean }>("/ingest/scan", { method: "POST" }),
     status: () => json<IngestStatus>("/ingest/status"),
+    search: (query: string) =>
+      json<SearchResponse>("/search", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query, limit: 200 }),
+      }),
     thumbUrl: (id: number) => `${baseUrl}/thumb/${id}`,
   };
 }

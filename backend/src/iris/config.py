@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     metadata_workers: int = 8  # thread pool for hash + EXIF (IO-light)
     decode_workers: int = 0  # spawn process pool for decode+thumb; 0 -> os.cpu_count()
 
+    # --- Embeddings / semantic search (ARCHITECTURE §2/§4), Phase 2 ---
+    embed_model: str = "Xenova/clip-vit-base-patch32"  # pre-exported CLIP ONNX (HF)
+    embed_dim: int = 512
+    embed_batch: int = 32
+    search_brute_max: int = 2000  # tier-1 threshold (T_small)
+    search_filtered_max: int = 50000  # tier-2 threshold (T_medium)
+
     # --- Cache limits (ARCHITECTURE §3), config knobs surfaced early ---
     thumb_max_gb: float = 8.0
     preview_cache_gb: float = 2.0

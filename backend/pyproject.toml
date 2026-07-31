@@ -33,16 +33,34 @@ dependencies = [
 [project.scripts]
 iris-sidecar = "iris.app:main"
 
+# ML/CV stack, split by phase so each install pulls only what it needs and we don't
+# block earlier phases on the paddlepaddle/insightface Apple-Silicon build issues
+# flagged in ARCHITECTURE §10.
 [project.optional-dependencies]
-# Heavy ML/CV inference stack. Install at Phase 2: `uv sync --extra ml`.
-ml = [
+# Phase 2 — embeddings + semantic search. Lean; no torch. `uv sync --extra embed`.
+embed = [
     "onnxruntime",          # CoreML execution provider ships in the macOS wheel
-    "transformers",         # tokenizers + processors for CLIP / SigLIP
-    "open-clip-torch",      # CLIP/SigLIP + LAION aesthetic predictor building blocks
+    "hnswlib",              # vector index (compiles from source on some platforms)
+    "transformers",         # CLIP/SigLIP tokenizer (no torch needed for tokenization)
+    "huggingface-hub",      # first-run model download into the app models/ dir
+]
+
+# Phase 3 — faces.
+faces = [
     "insightface",          # SCRFD (detection) + ArcFace (recognition)
     "opencv-python-headless",
-    "paddleocr",            # OCR (pulls paddlepaddle; verify Apple Silicon wheel)
-    "hnswlib",              # vector index (compiles from source on some platforms)
+]
+
+# Phase 4 — OCR.
+ocr = [
+    "paddleocr",            # pulls paddlepaddle; verify Apple Silicon wheel
+]
+
+# Everything (for full local installs / packaging). `uv sync --extra ml`.
+ml = [
+    "onnxruntime", "hnswlib", "transformers", "huggingface-hub",
+    "insightface", "opencv-python-headless", "paddleocr",
+    "open-clip-torch",      # torch-based CLIP (optional; e.g. offline model export)
 ]
 
 # Packaging the Python sidecar into a standalone binary.
@@ -103,5 +121,8 @@ files = ["src", "tests"]
 
 # Third-party packages without bundled type stubs.
 [[tool.mypy.overrides]]
-module = ["blake3.*", "aiosqlite.*", "pillow_heif.*"]
+module = [
+    "blake3.*", "aiosqlite.*", "pillow_heif.*",
+    "onnxruntime.*", "hnswlib.*", "transformers.*", "huggingface_hub.*",
+]
 ignore_missing_imports = true

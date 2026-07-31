@@ -536,14 +536,28 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+embed = [
+    { name = "hnswlib" },
+    { name = "huggingface-hub" },
+    { name = "onnxruntime" },
+    { name = "transformers" },
+]
+faces = [
+    { name = "insightface" },
+    { name = "opencv-python-headless" },
+]
 ml = [
     { name = "hnswlib" },
+    { name = "huggingface-hub" },
     { name = "insightface" },
     { name = "onnxruntime" },
     { name = "open-clip-torch" },
     { name = "opencv-python-headless" },
     { name = "paddleocr" },
     { name = "transformers" },
+]
+ocr = [
+    { name = "paddleocr" },
 ]
 packaging = [
     { name = "pyinstaller" },
@@ -563,23 +577,31 @@ requires-dist = [
     { name = "aiosqlite" },
     { name = "blake3" },
     { name = "fastapi" },
+    { name = "hnswlib", marker = "extra == 'embed'" },
     { name = "hnswlib", marker = "extra == 'ml'" },
+    { name = "huggingface-hub", marker = "extra == 'embed'" },
+    { name = "huggingface-hub", marker = "extra == 'ml'" },
+    { name = "insightface", marker = "extra == 'faces'" },
     { name = "insightface", marker = "extra == 'ml'" },
     { name = "numpy" },
+    { name = "onnxruntime", marker = "extra == 'embed'" },
     { name = "onnxruntime", marker = "extra == 'ml'" },
     { name = "open-clip-torch", marker = "extra == 'ml'" },
+    { name = "opencv-python-headless", marker = "extra == 'faces'" },
     { name = "opencv-python-headless", marker = "extra == 'ml'" },
     { name = "paddleocr", marker = "extra == 'ml'" },
+    { name = "paddleocr", marker = "extra == 'ocr'" },
     { name = "pillow" },
     { name = "pillow-heif" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pyinstaller", marker = "extra == 'packaging'" },
     { name = "python-multipart" },
+    { name = "transformers", marker = "extra == 'embed'" },
     { name = "transformers", marker = "extra == 'ml'" },
     { name = "uvicorn", extras = ["standard"] },
 ]
-provides-extras = ["ml", "packaging"]
+provides-extras = ["embed", "faces", "ocr", "ml", "packaging"]
 
 [package.metadata.requires-dev]
 dev = [

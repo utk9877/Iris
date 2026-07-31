@@ -3,6 +3,7 @@ import { useSidecar } from "./hooks/useSidecar";
 import { makeApi } from "./lib/api";
 import { PhotoGrid } from "./components/PhotoGrid";
 import { ScanBar } from "./components/ScanBar";
+import { SearchBar, type SearchState } from "./components/SearchBar";
 import "./App.css";
 import "./styles.css";
 
@@ -11,6 +12,7 @@ function App() {
   const api = useMemo(() => (baseUrl ? makeApi(baseUrl) : null), [baseUrl]);
   const [reloadKey, setReloadKey] = useState(0);
   const [count, setCount] = useState<number | null>(null);
+  const [search, setSearch] = useState<SearchState>(null);
 
   useEffect(() => {
     if (!api) return;
@@ -46,7 +48,13 @@ function App() {
         <span className="count">{count ?? "—"} photos</span>
       </header>
       <ScanBar api={api} onComplete={() => setReloadKey((k) => k + 1)} />
-      <PhotoGrid api={api} reloadKey={reloadKey} />
+      <SearchBar api={api} onResults={setSearch} />
+      {search && (
+        <div className="search-meta">
+          {search.items.length} result{search.items.length === 1 ? "" : "s"} · tier: {search.tier}
+        </div>
+      )}
+      <PhotoGrid api={api} reloadKey={reloadKey} searchItems={search ? search.items : null} />
     </div>
   );
 }

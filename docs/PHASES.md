@@ -49,16 +49,25 @@ to `benchmarks`, never fabricated).
       *Done (synthetic dataset):* `ingest_throughput` and `decode_p50` recorded from a real run (git_sha-tagged). Real-library numbers are a Phase 6 task.
 
 ## Phase 2 — Embeddings & semantic search
-- [ ] CLIP/SigLIP ONNX embed worker (CoreML EP), batched; write `clip.f32` memmap + `embed_row`.
-      *Done when:* every non-missing photo has `embed_at` set and a memmap row.
-- [ ] Build/persist hnswlib clip index; rebuildable from memmap on startup.
-      *Done when:* deleting `clip.hnsw` and restarting rebuilds it from memmap.
-- [ ] Text-query embedding + three-tier search (§4) + RRF fusion with FTS placeholder.
-      *Done when:* `POST /search{query}` returns ranked ids with the chosen `tier`.
-- [ ] Search UI: query box + filter state store wired to `/search`.
-      *Done when:* typing "dog on beach" returns relevant photos in the grid.
-- [ ] **Benchmark:** embed throughput (img/s) + search p50/p95 + recall@10 vs. brute-force on a labeled query set → `benchmarks`.
-      *Done when:* `embed_throughput`, `search_p50`, `recall@10` recorded from a real run.
+
+> **Status.** Model = **CLIP ViT-B/32 (512-d)**, pre-exported ONNX from HuggingFace,
+> downloaded on first use (config `embed_model`). **CoreML finding (§10 #4):** the
+> vision encoder runs on CoreML, but the **text encoder hard-fails on CoreML at
+> inference** (value-dependent) → text runs on CPU (tiny, once per query). Deps split
+> into `embed`/`faces`/`ocr` extras; Phase 2 installs `uv sync --extra embed`. Embedding
+> is done from the stored thumbnail (a simplification vs. §2's shared-memory hand-off).
+> Grid search UI compiles; in-app "dog on beach" relevance is a user-run check.
+
+- [x] CLIP ONNX embed stage (CoreML vision), batched; `clip.f32` memmap + `embed_row`. — `embeddings/clip.py`, `ingest/orchestrator.py:_run_embed`
+      *Done:* embed stage sets `embed_at` + a memmap row for every thumbnailed photo (test_embed_stage).
+- [x] Build/persist hnswlib index; rebuildable from memmap. — `embeddings/index.py`, `embeddings/service.py`
+      *Done:* deleting `clip.hnsw` → a fresh service rebuilds from memmap + DB (tested).
+- [x] Text-query embedding + three-tier search (§4) + RRF hook (FTS = Phase 4). — `search.py`, `api/search.py`
+      *Done:* `POST /search` returns ranked ids + `tier`; all 4 tiers unit-tested.
+- [x] Search UI: query box wired to `/search`, results render in the grid. — `frontend/src/components/SearchBar.tsx`, `PhotoGrid.tsx`
+      *Done (builds/typechecks);* in-app relevance is a user-run check like the grid.
+- [x] **Benchmark:** embed throughput + search p50/p95 + recall@10 vs. brute-force → `benchmarks`. — `scripts/bench_embed_search.py`
+      *Done (synthetic):* real run logged `embed_throughput≈115 img/s` (CoreML), `search_p50≈7.7 ms`, `recall_at_10=1.0` (perfect at 800; expect <1 at 100k → Phase 6).
 
 ## Phase 3 — Faces & people
 - [ ] SCRFD detect + align + ArcFace embed workers → `faces` + `faces.f32` memmap.

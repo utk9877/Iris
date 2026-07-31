@@ -183,3 +183,54 @@ def thumb_content_hash(conn: sqlite3.Connection, photo_id: int) -> str | None:
         (photo_id,),
     ).fetchone()
     return str(row[0]) if row is not None else None
+
+
+# --- Embedding stage (Phase 2) ---
+
+
+def count_pending_embed(conn: sqlite3.Connection) -> int:
+    """Non-missing photos not yet embedded (drives the embed half of job progress)."""
+    row = conn.execute(
+        "SELECT COUNT(*) FROM photos WHERE missing = 0 AND embed_at IS NULL"
+    ).fetchone()
+    return int(row[0])
+
+
+def fetch_pending_embed(conn: sqlite3.Connection, limit: int) -> list[tuple[int, str]]:
+    """Photos with a successful thumbnail (phash set) but no embedding yet."""
+    rows = conn.execute(
+        "SELECT id, content_hash FROM photos "
+        "WHERE missing = 0 AND embed_at IS NULL AND phash IS NOT NULL "
+        "AND content_hash IS NOT NULL ORDER BY id LIMIT ?",
+        (limit,),
+    ).fetchall()
+    return [(int(r[0]), str(r[1])) for r in rows]
+
+
+def set_embed(conn: sqlite3.Connection, photo_id: int, embed_row: int, now: float) -> None:
+    conn.execute(
+        "UPDATE photos SET embed_row = ?, embed_at = ?, updated_at = ? WHERE id = ?",
+        (embed_row, now, now, photo_id),
+    )
+
+
+def mark_embed_skipped(conn: sqlite3.Connection, photo_id: int, now: float) -> None:
+    """Mark a photo embedded-but-vectorless (thumbnail unreadable) so it isn't retried."""
+    conn.execute(
+        "UPDATE photos SET embed_at = ?, updated_at = ? WHERE id = ?",
+        (now, now, photo_id),
+    )
+
+
+def photos_by_ids(conn: sqlite3.Connection, ids: list[int]) -> dict[int, dict[str, Any]]:
+    """Fetch grid-column rows for a set of ids (for hydrating search results)."""
+    result: dict[int, dict[str, Any]] = {}
+    for start in range(0, len(ids), 900):  # stay under SQLite's variable cap
+        chunk = ids[start : start + 900]
+        placeholders = ",".join("?" for _ in chunk)
+        rows = conn.execute(
+            f"SELECT {_LIST_COLUMNS} FROM photos WHERE id IN ({placeholders})", chunk
+        ).fetchall()
+        for row in rows:
+            result[int(row["id"])] = dict(row)
+    return result

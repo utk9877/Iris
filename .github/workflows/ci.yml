@@ -16,8 +16,9 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-      # Lean core + dev tools only; the ML stack (extra `ml`) is not needed for CI.
-      - run: uv sync
+      # Core + dev + the Phase 2 `embed` extra (onnxruntime/hnswlib/tokenizer).
+      # The heavier `faces`/`ocr` extras stay out of CI until their phases.
+      - run: uv sync --extra embed
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy

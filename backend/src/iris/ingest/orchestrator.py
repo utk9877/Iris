@@ -19,14 +19,19 @@ from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+from PIL import Image
+
 from iris.config import Settings
 from iris.db import connect
 from iris.db import jobs as jobs_db
 from iris.db import library as library_db
 from iris.db import photos as photos_db
+from iris.embeddings.service import EmbeddingService
 from iris.ingest.metadata import extract_metadata
 from iris.ingest.scanner import iter_image_files
 from iris.ingest.thumbnails import render_thumbnail
+from iris.storage import content_shard_path
 
 logger = logging.getLogger("iris.ingest")
 
@@ -38,8 +43,9 @@ _THUMB_BATCH = 128
 class IngestManager:
     """Owns the ingest background thread and exposes start/cancel/status."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, embeddings: EmbeddingService | None = None) -> None:
         self._settings = settings
+        self._embeddings = embeddings
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
         self._cancel = threading.Event()
@@ -96,13 +102,19 @@ class IngestManager:
         try:
             self._scan(conn)
             total = photos_db.count_pending_thumb(conn)
+            if self._embeddings is not None:
+                total += photos_db.count_pending_embed(conn)
             jobs_db.update_job(conn, job_id, now=time.time(), total=total)
 
             self._run_metadata(conn)
             if not self._cancel.is_set():
                 self._run_thumbs(conn, job_id)
+            if self._embeddings is not None and not self._cancel.is_set():
+                self._run_embed(conn, job_id, self._embeddings)
 
             state = "canceled" if self._cancel.is_set() else "done"
+            if state == "done":
+                self._done = total  # clamp to 100% (thumb failures leave a small gap)
             jobs_db.update_job(
                 conn,
                 job_id,
@@ -237,6 +249,64 @@ class IngestManager:
         except Exception:
             conn.execute("ROLLBACK")
             raise
+
+    def _run_embed(
+        self, conn: sqlite3.Connection, job_id: int, embeddings: EmbeddingService
+    ) -> None:
+        """Embed thumbnails via CLIP, append to the memmap, and index them.
+
+        Reads the already-rendered thumbnail (not the original) to avoid a second
+        decode — a Phase 2 simplification vs. the shared-memory tensor hand-off in
+        ARCHITECTURE §2. Runs one ONNX session batched-serial in this thread.
+        """
+        embedder = embeddings.embedder()  # lazy load (may download on first use)
+        embeddings.ensure_index()
+        thumbs_dir = self._settings.thumbs_dir
+        batch_size = self._settings.embed_batch
+
+        while not self._cancel.is_set():
+            batch = photos_db.fetch_pending_embed(conn, batch_size)
+            if not batch:
+                break
+            images: list[Image.Image] = []
+            ids: list[int] = []
+            skipped: list[int] = []
+            for photo_id, digest in batch:
+                path = content_shard_path(thumbs_dir, digest, "webp")
+                try:
+                    images.append(Image.open(path).convert("RGB"))
+                    ids.append(photo_id)
+                except Exception:
+                    skipped.append(photo_id)
+
+            now = time.time()
+            if images:
+                vectors = embedder.embed_images(images)
+                start_row = embeddings.store.append(vectors)
+                conn.execute("BEGIN")
+                try:
+                    for offset, photo_id in enumerate(ids):
+                        photos_db.set_embed(conn, photo_id, start_row + offset, now)
+                    for photo_id in skipped:
+                        photos_db.mark_embed_skipped(conn, photo_id, now)
+                    conn.execute("COMMIT")
+                except Exception:
+                    conn.execute("ROLLBACK")
+                    raise
+                embeddings.add_to_index(vectors, np.array(ids, dtype=np.int64))
+                self._done += len(ids)
+            if skipped and not images:
+                conn.execute("BEGIN")
+                for photo_id in skipped:
+                    photos_db.mark_embed_skipped(conn, photo_id, now)
+                conn.execute("COMMIT")
+            self._done += len(skipped)
+            self._errored += len(skipped)
+            jobs_db.update_job(
+                conn, job_id, now=time.time(), done=self._done, errored=self._errored
+            )
+
+        embeddings.persist_index()
 
 
 class _ConnCtx:
