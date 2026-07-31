@@ -323,7 +323,13 @@ class IngestManager:
 
     def _run_faces(self, conn: sqlite3.Connection, job_id: int, faces: FacesService) -> None:
         """Detect + embed faces per photo, write faces + memmap, then update people (§6)."""
-        detector = faces.detector()  # lazy load (may download)
+        try:
+            detector = faces.detector()  # lazy load (may download / need the faces extra)
+        except Exception:
+            # A missing/broken face model must not fail the whole ingest — skip the
+            # faces stage (photos keep faces_at NULL and are retried on a later scan).
+            logger.warning("face detector unavailable; skipping faces stage", exc_info=True)
+            return
         max_edge = self._settings.face_max_edge
         batch_size = self._settings.face_batch
 
