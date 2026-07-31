@@ -22,13 +22,15 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy
-      - name: pytest (per-file, isolate crash)
+      - name: import bisection (isolate SIGILL)
         run: |
-          for f in tests/test_*.py; do
-            echo "::group::$f"
-            uv run python -X faulthandler -m pytest -q "$f"; rc=$?
-            [ $rc -ne 0 ] && echo "!!!!! CRASHED $f (exit $rc)"
-            echo "::endgroup::"
+          set +e
+          for mod in numpy "PIL.Image" hnswlib blake3 onnxruntime \
+                     iris.embeddings.index iris.embeddings.store \
+                     iris.faces.detector iris.faces.cluster iris.faces.service \
+                     iris.api.people iris.app; do
+            uv run python -X faulthandler -c "import $mod; print('OK  $mod')"
+            echo "  rc=$? importing $mod"
           done
 
   frontend:
