@@ -19,6 +19,14 @@ jobs:
       # Core + dev + the Phase 2 `embed` extra (onnxruntime/hnswlib/tokenizer).
       # The heavier `faces`/`ocr` extras stay out of CI until their phases.
       - run: uv sync --extra embed
+      # hnswlib's prebuilt Linux wheel embeds AVX instructions some runner CPUs lack,
+      # SIGILL-ing at import. Rebuild it from source (its setup uses -march=native, so
+      # it targets this runner's CPU). Verified via the CI import-bisection in history.
+      - name: rebuild hnswlib from source
+        env:
+          UV_NO_BINARY_PACKAGE: hnswlib
+        run: uv pip install --no-cache --reinstall-package hnswlib hnswlib
+      - run: uv run python -c "import hnswlib; print('hnswlib import OK')"
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy
