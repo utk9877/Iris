@@ -25,7 +25,7 @@ jobs:
       - name: rebuild hnswlib from source
         env:
           UV_NO_BINARY_PACKAGE: hnswlib
-        run: uv pip install --reinstall-package hnswlib hnswlib
+        run: uv pip install --no-cache --reinstall-package hnswlib hnswlib
       - run: uv run python -c "import hnswlib; print('hnswlib import OK')"
       - run: uv run ruff check .
       - run: uv run ruff format --check .
