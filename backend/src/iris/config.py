@@ -55,6 +55,23 @@ class Settings(BaseSettings):
     search_brute_max: int = 2000  # tier-1 threshold (T_small)
     search_filtered_max: int = 50000  # tier-2 threshold (T_medium)
 
+    # --- Faces (ARCHITECTURE §6), Phase 3 ---
+    face_model: str = "buffalo_l"  # insightface pack: SCRFD det_10g + ArcFace w600k_r50
+    face_dim: int = 512
+    face_det_size: int = 640
+    face_min_size: int = 32  # drop faces smaller than this (px)
+    face_min_det_score: float = 0.5
+    # Thresholds calibrated against ArcFace (buffalo_l): different people measured
+    # <=0.21 cosine, while the SAME person across pose/angle often sits at 0.3-0.6.
+    # 0.50 was far too strict (split people by angle); 0.35/0.42 keep a safe margin
+    # over the ~0.21 "stranger" ceiling. Tune per-library and re-cluster.
+    face_assign_threshold: float = 0.42  # cosine to a cluster centroid to join it
+    face_edge_threshold: float = 0.35  # cosine kNN-graph edge for Chinese Whispers
+    face_cluster_k: int = 20
+    face_pool_threshold: int = 200  # re-cluster the pending pool once it exceeds this
+    face_max_edge: int = 1280  # downscale originals to this longest edge before detection
+    face_batch: int = 16
+
     # --- Cache limits (ARCHITECTURE §3), config knobs surfaced early ---
     thumb_max_gb: float = 8.0
     preview_cache_gb: float = 2.0

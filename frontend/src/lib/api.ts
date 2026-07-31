@@ -22,6 +22,16 @@ export type PhotoPage = { items: Photo[]; next_cursor: string | null };
 export type SearchItem = Photo & { score: number };
 export type SearchResponse = { tier: string; items: SearchItem[] };
 
+export type Person = {
+  id: number;
+  label: string | null;
+  pinned: number;
+  size: number;
+  rep_face_id: number | null;
+  rep_photo_id: number | null;
+};
+export type PersonDetail = { person: Person; photos: Photo[] };
+
 export type Job = {
   id: number;
   kind: string;
@@ -74,6 +84,23 @@ export function makeApi(baseUrl: string) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ query, limit: 200 }),
       }),
+    people: () => json<Person[]>("/people"),
+    person: (id: number) => json<PersonDetail>(`/people/${id}`),
+    renamePerson: (id: number, label: string | null) =>
+      json<Person>(`/people/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ label }),
+      }),
+    mergePeople: (ids: number[]) =>
+      json<Person>("/people/merge", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids }),
+      }),
+    splitPerson: (id: number) =>
+      json<{ clusters: number }>(`/people/${id}/split`, { method: "POST" }),
+    recluster: () => json<{ people: number }>("/faces/recluster", { method: "POST" }),
     thumbUrl: (id: number) => `${baseUrl}/thumb/${id}`,
   };
 }

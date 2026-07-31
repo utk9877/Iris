@@ -129,3 +129,40 @@ class SearchItem(BaseModel):
 class SearchResponse(BaseModel):
     tier: str
     items: list[SearchItem]
+
+
+# --- People / faces (ARCHITECTURE §6/§8) ---
+
+
+class PersonOut(BaseModel):
+    id: int
+    label: str | None
+    pinned: int
+    size: int
+    rep_face_id: int | None
+    rep_photo_id: int | None
+
+
+class PersonDetail(BaseModel):
+    person: PersonOut
+    photos: list[PhotoOut]
+
+
+class RenameRequest(BaseModel):
+    label: str | None = None
+
+
+class MergeRequest(BaseModel):
+    ids: list[int]
+
+
+class FaceOut(BaseModel):
+    id: int
+    bx: float
+    by: float
+    bw: float
+    bh: float
+    det_score: float
+    quality: float | None
+    cluster_id: int | None
+    assigned: int

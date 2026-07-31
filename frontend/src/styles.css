@@ -129,6 +129,111 @@ body {
   border-bottom: 1px solid rgba(127, 127, 127, 0.15);
 }
 
+.view-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: 0.5rem;
+}
+.view-tabs button {
+  padding: 0.25rem 0.7rem;
+  border: 1px solid rgba(127, 127, 127, 0.35);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.view-tabs button.on {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: rgba(59, 130, 246, 0.6);
+}
+
+.people-panel,
+.people-detail {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+.people-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 1rem;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.25);
+}
+.people-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  padding: 12px;
+}
+.person-card {
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.person-card.sel {
+  border-color: rgba(59, 130, 246, 0.8);
+}
+.person-cover {
+  position: relative;
+  aspect-ratio: 1;
+  cursor: pointer;
+  background: rgba(127, 127, 127, 0.15);
+}
+.person-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.person-check {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 18px;
+  height: 18px;
+}
+.person-name {
+  border: none;
+  border-top: 1px solid rgba(127, 127, 127, 0.2);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+}
+.person-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.2rem 0.5rem 0.4rem;
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+}
+.person-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px;
+}
+.person-photos img {
+  width: 150px;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
 .grid-scroll {
   flex: 1;
   overflow: auto;

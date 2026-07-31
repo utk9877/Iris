@@ -124,5 +124,6 @@ files = ["src", "tests"]
 module = [
     "blake3.*", "aiosqlite.*", "pillow_heif.*",
     "onnxruntime.*", "hnswlib.*", "transformers.*", "huggingface_hub.*",
+    "insightface.*", "cv2.*",
 ]
 ignore_missing_imports = true

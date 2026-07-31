@@ -24,10 +24,13 @@ from PIL import Image
 
 from iris.config import Settings
 from iris.db import connect
+from iris.db import faces as faces_db
 from iris.db import jobs as jobs_db
 from iris.db import library as library_db
 from iris.db import photos as photos_db
 from iris.embeddings.service import EmbeddingService
+from iris.faces.detector import load_image_bgr
+from iris.faces.service import FacesService
 from iris.ingest.metadata import extract_metadata
 from iris.ingest.scanner import iter_image_files
 from iris.ingest.thumbnails import render_thumbnail
@@ -43,9 +46,15 @@ _THUMB_BATCH = 128
 class IngestManager:
     """Owns the ingest background thread and exposes start/cancel/status."""
 
-    def __init__(self, settings: Settings, embeddings: EmbeddingService | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        embeddings: EmbeddingService | None = None,
+        faces: FacesService | None = None,
+    ) -> None:
         self._settings = settings
         self._embeddings = embeddings
+        self._faces = faces
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
         self._cancel = threading.Event()
@@ -104,6 +113,8 @@ class IngestManager:
             total = photos_db.count_pending_thumb(conn)
             if self._embeddings is not None:
                 total += photos_db.count_pending_embed(conn)
+            if self._faces is not None:
+                total += photos_db.count_pending_faces(conn)
             jobs_db.update_job(conn, job_id, now=time.time(), total=total)
 
             self._run_metadata(conn)
@@ -111,6 +122,8 @@ class IngestManager:
                 self._run_thumbs(conn, job_id)
             if self._embeddings is not None and not self._cancel.is_set():
                 self._run_embed(conn, job_id, self._embeddings)
+            if self._faces is not None and not self._cancel.is_set():
+                self._run_faces(conn, job_id, self._faces)
 
             state = "canceled" if self._cancel.is_set() else "done"
             if state == "done":
@@ -307,6 +320,50 @@ class IngestManager:
             )
 
         embeddings.persist_index()
+
+    def _run_faces(self, conn: sqlite3.Connection, job_id: int, faces: FacesService) -> None:
+        """Detect + embed faces per photo, write faces + memmap, then update people (§6)."""
+        detector = faces.detector()  # lazy load (may download)
+        max_edge = self._settings.face_max_edge
+        batch_size = self._settings.face_batch
+
+        while not self._cancel.is_set():
+            batch = photos_db.fetch_pending_faces(conn, batch_size)
+            if not batch:
+                break
+            conn.execute("BEGIN")
+            try:
+                for photo_id, path in batch:
+                    try:
+                        image = load_image_bgr(path, max_edge)
+                        detected = detector.detect(image)
+                    except Exception as exc:
+                        logger.warning("face detect failed for %s: %s", path, exc)
+                        detected = []
+                    for face in detected:
+                        embed_row = faces.store.append(face.embedding.reshape(1, -1))
+                        faces_db.insert_face(
+                            conn,
+                            photo_id=photo_id,
+                            bbox=face.bbox,
+                            det_score=face.det_score,
+                            landmarks=face.landmarks,
+                            quality=face.quality,
+                            embed_row=embed_row,
+                            now=time.time(),
+                        )
+                    photos_db.set_faces_done(conn, photo_id, time.time())
+                    self._done += 1
+                conn.execute("COMMIT")
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
+            jobs_db.update_job(
+                conn, job_id, now=time.time(), done=self._done, errored=self._errored
+            )
+
+        if not self._cancel.is_set():
+            faces.update_people(conn)
 
 
 class _ConnCtx:

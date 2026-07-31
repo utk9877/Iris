@@ -291,11 +291,13 @@ identical frames. Semantic membership additionally feeds MMR diversity.
 - **Embed** — ArcFace (ONNX) → 512-d, L2-normalized → `faces.f32` memmap. A quality
   score (Laplacian-variance blur, size, frontalness) gates clustering seeds.
 - **Cluster** — build a kNN graph over face embeddings using the faces HNSW index
-  (`k=20`, edge kept at cosine `≥ 0.5`), then **Chinese Whispers** label propagation
+  (`k=20`, edge kept at cosine `≥ 0.35` — recalibrated in Phase 3: different people
+  measured `≤ 0.21` cosine, so `0.5` split the same person across angles), then
+  **Chinese Whispers** label propagation
   over the graph → person `clusters` (near-linear, robust to cluster-count unknown).
   Rep face = highest-quality frontal.
 - **Incremental / pending pool** — new faces are assigned to the nearest cluster
-  `centroid` if cosine `≥ 0.60` (start): assign, bump centroid. Otherwise → **pending
+  `centroid` if cosine `≥ 0.42` (recalibrated): assign, bump centroid. Otherwise → **pending
   pool** (`assigned=0`). When the pool exceeds `200` (or on demand) re-run Chinese
   Whispers over *pending faces + cluster reps* to form/merge clusters. `pinned`
   (labeled) clusters keep their identity across re-clustering; user merge/split is

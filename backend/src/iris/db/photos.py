@@ -222,6 +222,30 @@ def mark_embed_skipped(conn: sqlite3.Connection, photo_id: int, now: float) -> N
     )
 
 
+def count_pending_faces(conn: sqlite3.Connection) -> int:
+    row = conn.execute(
+        "SELECT COUNT(*) FROM photos WHERE missing = 0 AND faces_at IS NULL"
+    ).fetchone()
+    return int(row[0])
+
+
+def fetch_pending_faces(conn: sqlite3.Connection, limit: int) -> list[tuple[int, str]]:
+    """Photos with a rendered thumbnail (phash set) but no face detection yet."""
+    rows = conn.execute(
+        "SELECT id, path FROM photos "
+        "WHERE missing = 0 AND faces_at IS NULL AND phash IS NOT NULL "
+        "ORDER BY id LIMIT ?",
+        (limit,),
+    ).fetchall()
+    return [(int(r[0]), str(r[1])) for r in rows]
+
+
+def set_faces_done(conn: sqlite3.Connection, photo_id: int, now: float) -> None:
+    conn.execute(
+        "UPDATE photos SET faces_at = ?, updated_at = ? WHERE id = ?", (now, now, photo_id)
+    )
+
+
 def photos_by_ids(conn: sqlite3.Connection, ids: list[int]) -> dict[int, dict[str, Any]]:
     """Fetch grid-column rows for a set of ids (for hydrating search results)."""
     result: dict[int, dict[str, Any]] = {}
