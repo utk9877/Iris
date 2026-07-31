@@ -84,12 +84,6 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/iris"]
 
-[tool.uv]
-# Build hnswlib from source: its prebuilt Linux wheel embeds AVX instructions some
-# CPUs lack, which SIGILLs at import (seen on GitHub CI runners). A source build
-# targets the local CPU (-march=native). macOS arm64 already builds from source.
-no-binary-package = ["hnswlib"]
-
 # ---------------------------------------------------------------------------
 # Tooling configuration
 # ---------------------------------------------------------------------------
