@@ -18,20 +18,14 @@ jobs:
           enable-cache: true
       # Core + dev + the Phase 2 `embed` extra (onnxruntime/hnswlib/tokenizer).
       # The heavier `faces`/`ocr` extras stay out of CI until their phases.
-      - run: uv sync --extra embed
+      # Build hnswlib from source: its prebuilt Linux wheel uses SIMD (AVX) that some
+      # GitHub runner CPUs lack, which SIGILLs at import; a source build targets the
+      # runner's own CPU. See the git history for the CI import-bisection diagnosis.
+      - run: uv sync --extra embed --no-binary-package hnswlib
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy
-      - name: import bisection (isolate SIGILL)
-        run: |
-          set +e
-          for mod in numpy "PIL.Image" hnswlib blake3 onnxruntime \
-                     iris.embeddings.index iris.embeddings.store \
-                     iris.faces.detector iris.faces.cluster iris.faces.service \
-                     iris.api.people iris.app; do
-            uv run python -X faulthandler -c "import $mod; print('OK  $mod')"
-            echo "  rc=$? importing $mod"
-          done
+      - run: uv run pytest -q
 
   frontend:
     name: frontend (typecheck · build)
