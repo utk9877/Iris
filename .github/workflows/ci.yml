@@ -22,7 +22,14 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy
-      - run: uv run pytest -q
+      - name: pytest (per-file, isolate crash)
+        run: |
+          for f in tests/test_*.py; do
+            echo "::group::$f"
+            uv run python -X faulthandler -m pytest -q "$f"; rc=$?
+            [ $rc -ne 0 ] && echo "!!!!! CRASHED $f (exit $rc)"
+            echo "::endgroup::"
+          done
 
   frontend:
     name: frontend (typecheck · build)
