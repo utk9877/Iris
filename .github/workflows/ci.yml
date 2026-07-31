@@ -18,10 +18,9 @@ jobs:
           enable-cache: true
       # Core + dev + the Phase 2 `embed` extra (onnxruntime/hnswlib/tokenizer).
       # The heavier `faces`/`ocr` extras stay out of CI until their phases.
-      # Build hnswlib from source: its prebuilt Linux wheel uses SIMD (AVX) that some
-      # GitHub runner CPUs lack, which SIGILLs at import; a source build targets the
-      # runner's own CPU. See the git history for the CI import-bisection diagnosis.
-      - run: uv sync --extra embed --no-binary-package hnswlib
+      # hnswlib is forced to a source build via [tool.uv] no-binary-package in
+      # pyproject.toml (its prebuilt Linux wheel SIGILLs at import on some runner CPUs).
+      - run: uv sync --extra embed
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy
