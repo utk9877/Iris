@@ -73,6 +73,16 @@ function App() {
             <div className="search-meta">
               {search.items.length} result{search.items.length === 1 ? "" : "s"} · tier:{" "}
               {search.tier}
+              {search.applied?.date_label && (
+                <span className="applied-chip">📅 {search.applied.date_label}</span>
+              )}
+              {search.applied?.place_label && (
+                <span className="applied-chip">
+                  📍 {search.applied.place_label}
+                  {search.applied.radius_km ? ` · ${Math.round(search.applied.radius_km)} km` : ""}
+                </span>
+              )}
+              {search.placeError && <span className="applied-chip warn">⚠ {search.placeError}</span>}
             </div>
           )}
           <PhotoGrid api={api} reloadKey={reloadKey} searchItems={search ? search.items : null} />

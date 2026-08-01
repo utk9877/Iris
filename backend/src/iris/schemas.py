@@ -108,12 +108,26 @@ class SearchFilters(BaseModel):
     date_from: float | None = None
     date_to: float | None = None
     has_text: bool | None = None  # restrict to photos that contain recognized text
+    place: str | None = None  # place name -> resolved to coordinates offline (§4)
+    near_photo_id: int | None = None  # "near this photo" -> use its GPS
+    radius_km: float | None = None  # radius for place / near filters
 
 
 class SearchRequest(BaseModel):
     query: str
     filters: SearchFilters | None = None
     limit: int = 100
+
+
+class AppliedFilters(BaseModel):
+    """What the server actually applied — lets the UI echo parsed dates / resolved places."""
+
+    date_label: str | None = None  # e.g. "2024" or "Jul 2023" (from NL date parsing)
+    date_from: float | None = None
+    date_to: float | None = None
+    place_label: str | None = None  # e.g. "Paris, FR" (resolved) or None if unresolved
+    radius_km: float | None = None
+    text_query: str | None = None  # the leftover words used for semantic/OCR ranking
 
 
 class SearchItem(BaseModel):
@@ -130,6 +144,8 @@ class SearchItem(BaseModel):
 class SearchResponse(BaseModel):
     tier: str
     items: list[SearchItem]
+    applied: AppliedFilters | None = None
+    place_error: str | None = None  # set when a place name couldn't be resolved
 
 
 # --- People / faces (ARCHITECTURE §6/§8) ---

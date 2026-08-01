@@ -268,6 +268,27 @@ candidate id set of size `S`. OCR full-text is another filter/source via `ocr MA
 **Reciprocal Rank Fusion** (`k=60`); text-only queries rank by bm25; semantic-only by
 cosine. Final sort selectable (relevance vs. `taken_at`). Results → hydrate `photos`.
 
+> **Phase 4 build note — date & location filters (implemented).** Beyond folder +
+> `has_text`, two filters are now wired end-to-end:
+> - **Date** — a `[date_from, date_to]` range on the indexed `sort_at`, populated either
+>   from an explicit UI picker/chips **or parsed from the query text itself** by
+>   `iris.query_parse` ("beach 2024", "trip july 2023", "last summer", "last month",
+>   ISO dates). Parsed date tokens are stripped from the query before CLIP/OCR ranking;
+>   ambiguous bare month words ("may") are ignored to avoid false filters.
+> - **Location** — a place name is geocoded **fully offline** to coordinates via
+>   `iris.geo` (geonamescache's bundled ~34k-city dataset; no network), or a "near this
+>   photo" filter uses that photo's GPS. The center + radius become a `(gps_lat, gps_lon)`
+>   **bounding-box prefilter** (using `ix_photos_gps`) refined to a true great-circle
+>   radius in Python (SQLite has no haversine). The `geo` extra is optional: absent it,
+>   place search reports "unavailable" and coordinate/date filters still work.
+>
+> When the query is **only** a date/place ("photos from 2024", "Paris"), there are no
+> words to rank on, so `/search` returns a **filter-only browse** (`tier: "filter"`) of
+> the matching photos newest-first. The response echoes an `applied` block (parsed date
+> label, resolved place label, leftover text) so the UI can show what it actually did.
+> Still **not** implemented (future): camera/person/tag filters, and reverse-geocoding a
+> place name qualified by region ("Paris, TX" currently resolves to the larger Paris, FR).
+
 ## 5. Grouping architecture
 
 All four are `groups` rows (+ `group_items`). Computed in a hierarchy so triage

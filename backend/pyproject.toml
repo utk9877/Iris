@@ -58,10 +58,17 @@ ocr = [
     "ocrmac",               # thin wrapper over Vision (pulls pyobjc); macOS only
 ]
 
+# Phase 4 — offline place-name search (ARCHITECTURE §4). geonamescache bundles ~34k
+# world cities (name/lat/lon/population) as package data — no runtime download, fully
+# offline. Optional: place search degrades gracefully to unavailable when absent.
+geo = [
+    "geonamescache",
+]
+
 # Everything (for full local installs / packaging). `uv sync --extra ml`.
 ml = [
     "onnxruntime", "hnswlib", "transformers", "huggingface-hub",
-    "insightface", "opencv-python-headless", "ocrmac",
+    "insightface", "opencv-python-headless", "ocrmac", "geonamescache",
     "open-clip-torch",      # torch-based CLIP (optional; e.g. offline model export)
 ]
 
@@ -126,6 +133,6 @@ files = ["src", "tests"]
 module = [
     "blake3.*", "aiosqlite.*", "pillow_heif.*",
     "onnxruntime.*", "hnswlib.*", "transformers.*", "huggingface_hub.*",
-    "insightface.*", "cv2.*", "ocrmac.*",
+    "insightface.*", "cv2.*", "ocrmac.*", "geonamescache.*",
 ]
 ignore_missing_imports = true

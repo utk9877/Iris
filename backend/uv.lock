@@ -276,6 +276,18 @@ wheels = [
 ]
 
 [[package]]
+name = "geonamescache"
+version = "3.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/56/f7/1ca0ac4ca0b7a0f21f6628094a0e4fbfb836508370e8e835294ca125536f/geonamescache-3.0.2.tar.gz", hash = "sha256:1cc7007a7a14637f665c7bd7934dc5a04a973daf4d962d789651047aa1a00cb1", size = 33569006, upload-time = "2026-07-28T11:58:32.578Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/48/c2/52f1b29de8839b4b55cd2641dfd722a6a94953d74fa82514e26084a92318/geonamescache-3.0.2-py3-none-any.whl", hash = "sha256:b830e8942f2d58c7e68782dcf4dff2ffe8c4104a35ee881ed1ad4023cefcdba4", size = 35000667, upload-time = "2026-07-28T11:53:11.865Z" },
+]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -450,7 +462,11 @@ faces = [
     { name = "insightface" },
     { name = "opencv-python-headless" },
 ]
+geo = [
+    { name = "geonamescache" },
+]
 ml = [
+    { name = "geonamescache" },
     { name = "hnswlib" },
     { name = "huggingface-hub" },
     { name = "insightface" },
@@ -481,6 +497,8 @@ requires-dist = [
     { name = "aiosqlite" },
     { name = "blake3" },
     { name = "fastapi" },
+    { name = "geonamescache", marker = "extra == 'geo'" },
+    { name = "geonamescache", marker = "extra == 'ml'" },
     { name = "hnswlib", marker = "extra == 'embed'" },
     { name = "hnswlib", marker = "extra == 'ml'" },
     { name = "huggingface-hub", marker = "extra == 'embed'" },
@@ -505,7 +523,7 @@ requires-dist = [
     { name = "transformers", marker = "extra == 'ml'" },
     { name = "uvicorn", extras = ["standard"] },
 ]
-provides-extras = ["embed", "faces", "ocr", "ml", "packaging"]
+provides-extras = ["embed", "faces", "ocr", "geo", "ml", "packaging"]
 
 [package.metadata.requires-dev]
 dev = [

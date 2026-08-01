@@ -14,6 +14,7 @@ lands in Phase 4, so today only the semantic ranking flows through.
 
 from __future__ import annotations
 
+import math
 import sqlite3
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
@@ -22,8 +23,18 @@ import numpy as np
 
 from iris.embeddings.clip import Vectors
 from iris.embeddings.service import EmbeddingService
+from iris.geo.gazetteer import bbox_for
 
 _SQL_VAR_LIMIT = 900  # stay under SQLite's default 999-variable cap
+_EARTH_KM = 6371.0
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlambda / 2) ** 2
+    return 2 * _EARTH_KM * math.asin(min(1.0, math.sqrt(a)))
 
 
 @dataclass
@@ -49,8 +60,14 @@ def build_candidates(
     folder: str | None = None,
     date_from: float | None = None,
     date_to: float | None = None,
+    gps_center: tuple[float, float] | None = None,
+    gps_radius_km: float | None = None,
 ) -> set[int] | None:
-    """Compile metadata filters to a candidate id set, or None if no filter is set."""
+    """Compile metadata filters to a candidate id set, or None if no filter is set.
+
+    A GPS filter uses the ``(gps_lat, gps_lon)`` index for a fast bounding-box prefilter,
+    then refines to a true great-circle radius in Python (SQLite has no haversine).
+    """
     clauses = ["missing = 0"]
     params: list[object] = []
     if folder:
@@ -62,10 +79,33 @@ def build_candidates(
     if date_to is not None:
         clauses.append("sort_at <= ?")
         params.append(date_to)
+
+    if gps_center is not None:
+        radius = gps_radius_km if gps_radius_km is not None else 25.0
+        min_lat, min_lon, max_lat, max_lon = bbox_for(gps_center[0], gps_center[1], radius)
+        clauses += ["gps_lat IS NOT NULL", "gps_lat BETWEEN ? AND ?", "gps_lon BETWEEN ? AND ?"]
+        params += [min_lat, max_lat, min_lon, max_lon]
+        rows = conn.execute(
+            f"SELECT id, gps_lat, gps_lon FROM photos WHERE {' AND '.join(clauses)}", params
+        ).fetchall()
+        return {
+            int(r[0])
+            for r in rows
+            if _haversine_km(gps_center[0], gps_center[1], float(r[1]), float(r[2])) <= radius
+        }
+
     if len(clauses) == 1:
         return None  # no real filter -> unfiltered search
     rows = conn.execute(f"SELECT id FROM photos WHERE {' AND '.join(clauses)}", params).fetchall()
     return {int(r[0]) for r in rows}
+
+
+def photo_gps(conn: sqlite3.Connection, photo_id: int) -> tuple[float, float] | None:
+    """The GPS coordinate of a photo, for a 'near this photo' filter."""
+    row = conn.execute(
+        "SELECT gps_lat, gps_lon FROM photos WHERE id = ? AND gps_lat IS NOT NULL", (photo_id,)
+    ).fetchone()
+    return (float(row[0]), float(row[1])) if row is not None else None
 
 
 def _embed_rows_for(conn: sqlite3.Connection, ids: Sequence[int]) -> tuple[list[int], list[int]]:

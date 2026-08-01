@@ -197,6 +197,66 @@ body {
   width: 18px;
   height: 18px;
 }
+.searchbar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.search-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+.search-filters label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.search-filters input[type="date"],
+.search-filters input[type="text"],
+.search-filters input[type="number"] {
+  font: inherit;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+}
+.search-filters .radius {
+  width: 4rem;
+}
+.search-filters .chips {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+.search-filters .chips button {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.search-filters .chips button:hover {
+  background: rgba(127, 127, 127, 0.15);
+}
+.applied-chip {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.18);
+  font-size: 0.8rem;
+}
+.applied-chip.warn {
+  background: rgba(220, 140, 20, 0.22);
+}
 .group-badge {
   position: absolute;
   top: 6px;

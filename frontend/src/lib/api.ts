@@ -20,7 +20,30 @@ export type Photo = {
 export type PhotoPage = { items: Photo[]; next_cursor: string | null };
 
 export type SearchItem = Photo & { score: number };
-export type SearchResponse = { tier: string; items: SearchItem[] };
+
+export type SearchFilters = {
+  date_from?: number | null;
+  date_to?: number | null;
+  place?: string | null;
+  radius_km?: number | null;
+  has_text?: boolean | null;
+};
+
+export type AppliedFilters = {
+  date_label: string | null;
+  date_from: number | null;
+  date_to: number | null;
+  place_label: string | null;
+  radius_km: number | null;
+  text_query: string | null;
+};
+
+export type SearchResponse = {
+  tier: string;
+  items: SearchItem[];
+  applied?: AppliedFilters | null;
+  place_error?: string | null;
+};
 
 export type Person = {
   id: number;
@@ -104,11 +127,11 @@ export function makeApi(baseUrl: string) {
       }),
     scan: () => json<{ job_id: number; running: boolean }>("/ingest/scan", { method: "POST" }),
     status: () => json<IngestStatus>("/ingest/status"),
-    search: (query: string) =>
+    search: (query: string, filters?: SearchFilters) =>
       json<SearchResponse>("/search", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ query, limit: 200 }),
+        body: JSON.stringify({ query, limit: 200, filters: filters ?? null }),
       }),
     people: () => json<Person[]>("/people"),
     person: (id: number) => json<PersonDetail>(`/people/${id}`),

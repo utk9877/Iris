@@ -91,6 +91,12 @@ class Settings(BaseSettings):
     ocr_max_edge: int = 1600  # downscale originals to this longest edge before OCR
     ocr_languages: tuple[str, ...] = ("en-US",)  # Vision recognition languages
 
+    # --- Location search (ARCHITECTURE §4), Phase 4 ---
+    # Offline place-name -> coordinates via geonamescache (bundled city data). When a
+    # place or "near a photo" filter is used, photos within this radius match by default.
+    geo_default_radius_km: float = 25.0
+    geo_min_population: int = 1000  # ignore hamlets when disambiguating a place name
+
     # --- Cache limits (ARCHITECTURE §3), config knobs surfaced early ---
     thumb_max_gb: float = 8.0
     preview_cache_gb: float = 2.0

@@ -27,6 +27,7 @@ from iris.config import Settings, get_settings
 from iris.db import apply_migrations, connect
 from iris.embeddings.service import EmbeddingService
 from iris.faces.service import FacesService
+from iris.geo.service import GeoService
 from iris.grouping.service import GroupingService
 from iris.ingest.orchestrator import IngestManager
 from iris.ocr.service import OcrService
@@ -75,6 +76,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.embeddings = embeddings
         app.state.faces = faces
         app.state.grouping = grouping
+        app.state.geo = GeoService(resolved)
         app.state.ingest = IngestManager(resolved, embeddings, faces, ocr, grouping)
         yield
 

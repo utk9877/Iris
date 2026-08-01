@@ -107,6 +107,8 @@ to `benchmarks`, never fabricated).
       *Done:* text visible in a photo is searchable (`test_ocr`, `test_search_fusion`); `has_text` filter + tags CRUD tested (`test_api_tags`).
 - [x] **Benchmark/test:** grouping precision/recall + OCR recall → `benchmarks`. — `scripts/bench_grouping.py`, `scripts/bench_ocr.py`
       *Done (real runs):* near-dup `grouping_f1=1.0` + `event_recall=1.0` at `≈1976 photos/s` on a **clean synthetic** near-dup set (12 scenes × 4 JPEG variants — no adversarial collisions; a labeled real-photo set is a Phase 6 item). Apple Vision `ocr_recall=0.966` (28/29 words) at `≈7.9 img/s` on rendered-text images (throughput includes first-call model warmup; small bitmap font).
+- [x] **Date & location search** (follow-up, ARCHITECTURE §4). — `query_parse.py`, `geo/`, `search.py`, `api/search.py`, `frontend/src/components/SearchBar.tsx`
+      *Done:* NL date parsing ("beach 2024", "last summer") + explicit date range; offline place-name geocoding (geonamescache, `geo` extra) + GPS radius / "near this photo"; filter-only browse when the query is just a date/place; UI filters row + applied-filter chips. Tested by `test_query_parse`, `test_geo`, `test_search_location` (all CI-safe via fakes). Not yet: camera/person/tag filters, region-qualified place disambiguation.
 
 ## Phase 5 — Trip triage & aesthetics
 - [ ] LAION aesthetic + OpenCV quality scorers populate `aesthetic`/`quality`.
