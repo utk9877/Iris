@@ -27,13 +27,16 @@ from iris.db import connect
 from iris.db import faces as faces_db
 from iris.db import jobs as jobs_db
 from iris.db import library as library_db
+from iris.db import ocr as ocr_db
 from iris.db import photos as photos_db
 from iris.embeddings.service import EmbeddingService
 from iris.faces.detector import load_image_bgr
 from iris.faces.service import FacesService
+from iris.grouping.service import GroupingService
 from iris.ingest.metadata import extract_metadata
 from iris.ingest.scanner import iter_image_files
 from iris.ingest.thumbnails import render_thumbnail
+from iris.ocr.service import OcrService
 from iris.storage import content_shard_path
 
 logger = logging.getLogger("iris.ingest")
@@ -51,10 +54,14 @@ class IngestManager:
         settings: Settings,
         embeddings: EmbeddingService | None = None,
         faces: FacesService | None = None,
+        ocr: OcrService | None = None,
+        grouping: GroupingService | None = None,
     ) -> None:
         self._settings = settings
         self._embeddings = embeddings
         self._faces = faces
+        self._ocr = ocr
+        self._grouping = grouping
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
         self._cancel = threading.Event()
@@ -115,6 +122,8 @@ class IngestManager:
                 total += photos_db.count_pending_embed(conn)
             if self._faces is not None:
                 total += photos_db.count_pending_faces(conn)
+            if self._ocr is not None:
+                total += ocr_db.count_pending_ocr(conn)
             jobs_db.update_job(conn, job_id, now=time.time(), total=total)
 
             self._run_metadata(conn)
@@ -124,6 +133,10 @@ class IngestManager:
                 self._run_embed(conn, job_id, self._embeddings)
             if self._faces is not None and not self._cancel.is_set():
                 self._run_faces(conn, job_id, self._faces)
+            if self._ocr is not None and not self._cancel.is_set():
+                self._run_ocr(conn, job_id, self._ocr)
+            if self._grouping is not None and not self._cancel.is_set():
+                self._run_grouping(conn, self._grouping)
 
             state = "canceled" if self._cancel.is_set() else "done"
             if state == "done":
@@ -370,6 +383,54 @@ class IngestManager:
 
         if not self._cancel.is_set():
             faces.update_people(conn)
+
+    def _run_ocr(self, conn: sqlite3.Connection, job_id: int, ocr: OcrService) -> None:
+        """Recognize text per photo into the FTS index (ARCHITECTURE §4/§6).
+
+        Graceful skip: on a host without a working engine (non-macOS / no ``ocr`` extra)
+        ``engine()`` returns None and the whole stage is a no-op — photos keep ``ocr_at``
+        NULL and are retried on a later scan, exactly like the faces stage.
+        """
+        engine = ocr.engine()
+        if engine is None:
+            logger.info("OCR engine unavailable; skipping OCR stage")
+            return
+        batch_size = self._settings.face_batch  # small, IO+ANE bound like faces
+
+        while not self._cancel.is_set():
+            batch = ocr_db.fetch_pending_ocr(conn, batch_size)
+            if not batch:
+                break
+            conn.execute("BEGIN")
+            try:
+                for photo_id, path in batch:
+                    try:
+                        regions = engine.recognize(path)
+                    except Exception as exc:
+                        logger.warning("OCR failed for %s: %s", path, exc)
+                        regions = []
+                    ocr_db.set_ocr(
+                        conn,
+                        photo_id=photo_id,
+                        text=OcrService.combined_text(regions),
+                        regions=[(r.bx, r.by, r.bw, r.bh, r.conf, r.text) for r in regions],
+                        now=time.time(),
+                    )
+                    self._done += 1
+                conn.execute("COMMIT")
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
+            jobs_db.update_job(
+                conn, job_id, now=time.time(), done=self._done, errored=self._errored
+            )
+
+    def _run_grouping(self, conn: sqlite3.Connection, grouping: GroupingService) -> None:
+        """Rebuild all group layers (events/bursts/near-dups/themes) after ingest."""
+        try:
+            grouping.rebuild(conn)
+        except Exception:
+            logger.warning("grouping rebuild failed; leaving prior groups in place", exc_info=True)
 
 
 class _ConnCtx:

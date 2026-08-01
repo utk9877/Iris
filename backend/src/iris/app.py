@@ -15,17 +15,22 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from iris import __version__
+from iris.api.groups import router as groups_router
 from iris.api.ingest import router as ingest_router
 from iris.api.library import router as library_router
 from iris.api.people import router as people_router
 from iris.api.photos import router as photos_router
 from iris.api.search import router as search_router
 from iris.api.system import router as system_router
+from iris.api.tags import router as tags_router
 from iris.config import Settings, get_settings
 from iris.db import apply_migrations, connect
 from iris.embeddings.service import EmbeddingService
 from iris.faces.service import FacesService
+from iris.geo.service import GeoService
+from iris.grouping.service import GroupingService
 from iris.ingest.orchestrator import IngestManager
+from iris.ocr.service import OcrService
 
 # Origins the Tauri webview uses. In `tauri dev` the frontend is served by Vite at
 # localhost:1420 and calls the sidecar cross-origin; in a packaged build the webview
@@ -66,9 +71,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.schema_version = schema_version
         embeddings = EmbeddingService(resolved)
         faces = FacesService(resolved)
+        ocr = OcrService(resolved)
+        grouping = GroupingService(resolved, embeddings)
         app.state.embeddings = embeddings
         app.state.faces = faces
-        app.state.ingest = IngestManager(resolved, embeddings, faces)
+        app.state.grouping = grouping
+        app.state.geo = GeoService(resolved)
+        app.state.ingest = IngestManager(resolved, embeddings, faces, ocr, grouping)
         yield
 
     app = FastAPI(title="Iris", version=__version__, lifespan=lifespan)
@@ -85,6 +94,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(photos_router)
     app.include_router(search_router)
     app.include_router(people_router)
+    app.include_router(groups_router)
+    app.include_router(tags_router)
     return app
 
 

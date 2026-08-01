@@ -20,7 +20,30 @@ export type Photo = {
 export type PhotoPage = { items: Photo[]; next_cursor: string | null };
 
 export type SearchItem = Photo & { score: number };
-export type SearchResponse = { tier: string; items: SearchItem[] };
+
+export type SearchFilters = {
+  date_from?: number | null;
+  date_to?: number | null;
+  place?: string | null;
+  radius_km?: number | null;
+  has_text?: boolean | null;
+};
+
+export type AppliedFilters = {
+  date_label: string | null;
+  date_from: number | null;
+  date_to: number | null;
+  place_label: string | null;
+  radius_km: number | null;
+  text_query: string | null;
+};
+
+export type SearchResponse = {
+  tier: string;
+  items: SearchItem[];
+  applied?: AppliedFilters | null;
+  place_error?: string | null;
+};
 
 export type Person = {
   id: number;
@@ -31,6 +54,32 @@ export type Person = {
   rep_photo_id: number | null;
 };
 export type PersonDetail = { person: Person; photos: Photo[] };
+
+export type GroupKind = "event" | "burst" | "near_dup" | "semantic";
+
+export type Group = {
+  id: number;
+  kind: string;
+  key: string | null;
+  rep_photo_id: number | null;
+  size: number;
+  score: number | null;
+  start_at: number | null;
+  end_at: number | null;
+};
+export type GroupDetail = { group: Group; photos: Photo[] };
+
+export type Tag = { id: number; name: string; kind: string; count?: number | null };
+
+export type OcrRegion = {
+  bx: number;
+  by: number;
+  bw: number;
+  bh: number;
+  conf: number;
+  text: string;
+};
+export type OcrResponse = { photo_id: number; text: string; regions: OcrRegion[] };
 
 export type Job = {
   id: number;
@@ -78,11 +127,11 @@ export function makeApi(baseUrl: string) {
       }),
     scan: () => json<{ job_id: number; running: boolean }>("/ingest/scan", { method: "POST" }),
     status: () => json<IngestStatus>("/ingest/status"),
-    search: (query: string) =>
+    search: (query: string, filters?: SearchFilters) =>
       json<SearchResponse>("/search", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ query, limit: 200 }),
+        body: JSON.stringify({ query, limit: 200, filters: filters ?? null }),
       }),
     people: () => json<Person[]>("/people"),
     person: (id: number) => json<PersonDetail>(`/people/${id}`),
@@ -101,6 +150,20 @@ export function makeApi(baseUrl: string) {
     splitPerson: (id: number) =>
       json<{ clusters: number }>(`/people/${id}/split`, { method: "POST" }),
     recluster: () => json<{ people: number }>("/faces/recluster", { method: "POST" }),
+    groups: (kind: GroupKind, limit = 200) =>
+      json<Group[]>(`/groups?kind=${kind}&limit=${limit}`),
+    group: (id: number) => json<GroupDetail>(`/groups/${id}`),
+    tags: () => json<Tag[]>("/tags"),
+    photoTags: (id: number) => json<Tag[]>(`/photos/${id}/tags`),
+    addPhotoTag: (id: number, name: string) =>
+      json<Tag>(`/photos/${id}/tags`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name }),
+      }),
+    removePhotoTag: (id: number, tagId: number) =>
+      json<{ ok: boolean }>(`/photos/${id}/tags/${tagId}`, { method: "DELETE" }),
+    photoOcr: (id: number) => json<OcrResponse>(`/photos/${id}/ocr`),
     thumbUrl: (id: number) => `${baseUrl}/thumb/${id}`,
   };
 }

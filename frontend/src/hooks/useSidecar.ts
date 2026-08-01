@@ -11,9 +11,18 @@ export function useSidecar(): SidecarState {
 
   useEffect(() => {
     let cancelled = false;
-    invoke<string | null>("sidecar_url").then((url) => {
-      if (!cancelled && url) setBaseUrl(url);
-    });
+    // Dev fallback: when running the frontend in a plain browser (Vite, no Tauri),
+    // `invoke` is unavailable — fall back to a fixed sidecar URL so the UI can be
+    // exercised against a manually-run sidecar. Ignored in the packaged Tauri app.
+    const devUrl = (import.meta.env.VITE_SIDECAR_URL as string | undefined) ?? null;
+    invoke<string | null>("sidecar_url")
+      .then((url) => {
+        if (!cancelled && url) setBaseUrl(url);
+        else if (!cancelled && devUrl) setBaseUrl(devUrl);
+      })
+      .catch(() => {
+        if (!cancelled && devUrl) setBaseUrl(devUrl);
+      });
     const unlisten = listen<string>("sidecar-ready", (event) => {
       if (!cancelled) setBaseUrl(event.payload);
     });

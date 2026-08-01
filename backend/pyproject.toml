@@ -51,15 +51,24 @@ faces = [
     "opencv-python-headless",
 ]
 
-# Phase 4 — OCR.
+# Phase 4 — OCR. Apple's Vision framework (native, on-device, Apple-Silicon-fast) via
+# ocrmac, replacing the originally-planned PaddleOCR whose paddlepaddle wheel is unreliable
+# on ARM Macs (see ARCHITECTURE §6/§10). macOS-only; the OCR stage skips on other hosts.
 ocr = [
-    "paddleocr",            # pulls paddlepaddle; verify Apple Silicon wheel
+    "ocrmac",               # thin wrapper over Vision (pulls pyobjc); macOS only
+]
+
+# Phase 4 — offline place-name search (ARCHITECTURE §4). geonamescache bundles ~34k
+# world cities (name/lat/lon/population) as package data — no runtime download, fully
+# offline. Optional: place search degrades gracefully to unavailable when absent.
+geo = [
+    "geonamescache",
 ]
 
 # Everything (for full local installs / packaging). `uv sync --extra ml`.
 ml = [
     "onnxruntime", "hnswlib", "transformers", "huggingface-hub",
-    "insightface", "opencv-python-headless", "paddleocr",
+    "insightface", "opencv-python-headless", "ocrmac", "geonamescache",
     "open-clip-torch",      # torch-based CLIP (optional; e.g. offline model export)
 ]
 
@@ -124,6 +133,6 @@ files = ["src", "tests"]
 module = [
     "blake3.*", "aiosqlite.*", "pillow_heif.*",
     "onnxruntime.*", "hnswlib.*", "transformers.*", "huggingface_hub.*",
-    "insightface.*", "cv2.*",
+    "insightface.*", "cv2.*", "ocrmac.*", "geonamescache.*",
 ]
 ignore_missing_imports = true

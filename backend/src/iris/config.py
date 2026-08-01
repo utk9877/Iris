@@ -72,6 +72,31 @@ class Settings(BaseSettings):
     face_max_edge: int = 1280  # downscale originals to this longest edge before detection
     face_batch: int = 16
 
+    # --- Grouping (ARCHITECTURE §5), Phase 4 ---
+    event_gap_seconds: float = 4 * 60 * 60  # new event when the time gap exceeds this
+    event_gps_km: float = 50.0  # ...or when consecutive shots jump this far apart
+    burst_gap_seconds: float = 2.0  # same-camera shots closer than this form a burst
+    near_dup_hamming: int = 6  # phash Hamming distance for near-duplicate candidates
+    near_dup_cosine: float = 0.95  # CLIP cosine confirmation for a near-duplicate pair
+    semantic_k: int = 20  # kNN graph degree for semantic (theme) clustering
+    semantic_edge_threshold: float = 0.75  # CLIP cosine edge kept in the semantic graph
+    semantic_min_size: int = 5  # discard semantic themes smaller than this
+
+    # --- OCR (ARCHITECTURE §6/§10), Phase 4 ---
+    # Apple's Vision framework (native, on-device, Apple-Silicon-fast) replaces the
+    # originally-planned PaddleOCR, whose paddlepaddle wheel is unreliable on ARM Macs
+    # (CLAUDE.md setup note). The engine is pluggable — see iris/ocr/engine.py.
+    ocr_engine: str = "apple_vision"  # "apple_vision" | "none" (Linux/CI -> auto-skip)
+    ocr_min_conf: float = 0.3  # drop recognized lines below this confidence
+    ocr_max_edge: int = 1600  # downscale originals to this longest edge before OCR
+    ocr_languages: tuple[str, ...] = ("en-US",)  # Vision recognition languages
+
+    # --- Location search (ARCHITECTURE §4), Phase 4 ---
+    # Offline place-name -> coordinates via geonamescache (bundled city data). When a
+    # place or "near a photo" filter is used, photos within this radius match by default.
+    geo_default_radius_km: float = 25.0
+    geo_min_population: int = 1000  # ignore hamlets when disambiguating a place name
+
     # --- Cache limits (ARCHITECTURE §3), config knobs surfaced early ---
     thumb_max_gb: float = 8.0
     preview_cache_gb: float = 2.0
