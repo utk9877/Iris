@@ -107,6 +107,7 @@ class SearchFilters(BaseModel):
     folder: str | None = None
     date_from: float | None = None
     date_to: float | None = None
+    has_text: bool | None = None  # restrict to photos that contain recognized text
 
 
 class SearchRequest(BaseModel):
@@ -166,3 +167,51 @@ class FaceOut(BaseModel):
     quality: float | None
     cluster_id: int | None
     assigned: int
+
+
+# --- Groups (ARCHITECTURE §5/§8) ---
+
+
+class GroupOut(BaseModel):
+    id: int
+    kind: str
+    key: str | None
+    rep_photo_id: int | None
+    size: int
+    score: float | None
+    start_at: float | None
+    end_at: float | None
+
+
+class GroupDetail(BaseModel):
+    group: GroupOut
+    photos: list[PhotoOut]
+
+
+# --- Tags + OCR (ARCHITECTURE §1/§8) ---
+
+
+class TagOut(BaseModel):
+    id: int
+    name: str
+    kind: str
+    count: int | None = None
+
+
+class PhotoTagRequest(BaseModel):
+    name: str
+
+
+class OcrRegionOut(BaseModel):
+    bx: float
+    by: float
+    bw: float
+    bh: float
+    conf: float
+    text: str
+
+
+class OcrResponse(BaseModel):
+    photo_id: int
+    text: str
+    regions: list[OcrRegionOut]

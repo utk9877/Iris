@@ -19,7 +19,7 @@ from iris.schemas import (
 
 router = APIRouter(tags=["system"])
 
-_COUNT_TABLES = ("photos", "faces", "groups", "benchmarks")
+_COUNT_TABLES = ("photos", "faces", "groups", "tags", "benchmarks")
 
 _INDEX_HTML = f"""<!doctype html>
 <html lang="en">

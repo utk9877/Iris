@@ -201,8 +201,14 @@ independent of decode and of each other.
   (CoreML EP): an **embed** worker and a **faces** worker, fed by bounded queues and
   running **batched-serial** (the accelerator is the scarce resource; batching, not
   threading, is the win). Overlaps CPU decode.
-- **OCR** is a decoupled, lowest-priority **process pool** (PaddleOCR) that may lag
-  behind the rest; it reads the medium image and writes `ocr` + `ocr_regions`.
+- **OCR** is a decoupled, lowest-priority stage that reads the source image and writes
+  `ocr` (FTS5) + `ocr_regions`. **Phase 4 build note:** the engine is **Apple's Vision
+  framework** (native, on-device, Apple-Silicon-fast) via `ocrmac`, replacing the planned
+  PaddleOCR whose `paddlepaddle` wheel is unreliable on ARM Macs (CLAUDE.md setup note).
+  The engine is **pluggable** (`iris.ocr.engine.OcrEngine`, selected by `Settings.ocr_engine`)
+  and its heavy import is lazy + macOS-guarded, so non-macOS hosts (CI/Linux) get no engine
+  and the OCR stage skips cleanly — the same graceful-skip contract as the faces stage. It
+  currently runs in-thread batched-serial (like faces), not a process pool.
 
 Bounded queues between stages provide backpressure. Pipeline parallelism: different
 photos occupy different stages at once.
@@ -273,13 +279,28 @@ dedupes before it diversifies:
    `< 2s` (start) → burst; `group_items.rank` orders by quality (best = 0).
 3. **near_dup** — `phash` Hamming `≤ 6` bits (start) via sort+union-find, confirmed by
    CLIP cosine `≥ 0.95`. Catches near-identical frames across/within bursts.
-4. **semantic** — global CLIP-embedding clustering (HDBSCAN over the kNN graph) into
-   cross-cutting themes ("beach", "documents"); independent of time.
+4. **semantic** — global CLIP-embedding clustering into cross-cutting themes ("beach",
+   "documents"); independent of time.
+
+> **Phase 4 build note — semantic clusterer.** The originally-planned HDBSCAN was
+> replaced by the **Chinese Whispers kNN-graph community detector already used for faces**
+> (`iris.faces.cluster.cluster_embeddings`, run over the CLIP memmap with a cosine edge
+> threshold ≈ 0.75, min theme size 5). Rationale: it needs no cluster count up front, adds
+> **no new heavy dependency** (numpy + hnswlib only — HDBSCAN would pull scikit-learn into
+> the lean `embed` extra and CI), and reuses code we already test. Themes below the min
+> size are dropped as noise, matching HDBSCAN's noise semantics.
 
 **Relationships:** event ⊃ burst ⊃ near_dup form a temporal hierarchy; semantic
 cross-cuts them. **Ordering matters for triage:** near-dup collapse + burst-best
 selection run **before** diversity ranking, so triage never diversifies over ten
 identical frames. Semantic membership additionally feeds MMR diversity.
+
+> **Phase 4 build note — burst/near-dup representative.** Until Phase 5 populates the
+> `quality`/`aesthetic` scores, the group representative and `near_dup` ranking use a
+> cheap available proxy: **highest pixel resolution** (`width×height`, id tie-break).
+> The near-dup scan is a windowed phash sort (window 20) rather than full O(n²), so
+> `window` is the recall knob; CLIP cosine (≥ 0.95) confirms each phash-close pair when an
+> embedding exists, rejecting the occasional hash collision between unrelated images.
 
 ## 6. Face pipeline
 
@@ -373,7 +394,7 @@ tier,next_cursor}`; `GET /search/suggest?q=`.
    over/under-merge on 300k+ faces). *Fallback:* HNSW kNN (avoid O(n²)), tunable
    thresholds, incremental pending pool, manual merge/split UI, block graph by
    time/quality.
-3. **Tauri + PyInstaller packaging** (bundling ORT/CoreML/paddle/insightface/opencv;
+3. **Tauri + PyInstaller packaging** (bundling ORT/CoreML/insightface/opencv/pyobjc;
    signing + notarization; sidecar lifecycle). *Fallback:* ship sidecar as a separate
    signed binary; PyInstaller `--onedir`; lazy model download on first run; validate
    notarization in Phase 0/1, not Phase 6; documented dev fallback of running the

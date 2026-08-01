@@ -88,14 +88,25 @@ to `benchmarks`, never fabricated).
       *Done (real run):* `face_throughput≈76 faces/s` (CoreML). `cluster_purity=1.0` was measured under **photometric** variation only (lighting/blur, same pose) — it did **not** cover pose, which is the real failure mode. Pose robustness is addressed by recalibrating the edge/assign thresholds (0.50/0.60 → 0.35/0.42) from the measured stranger-cosine ceiling (≤0.21); see `test_edge_threshold_controls_pose_merging`. A labeled multi-pose purity benchmark is a Phase 6 item.
 
 ## Phase 4 — Grouping + OCR/FTS + tags
-- [ ] Near-dup (phash+cosine), burst (time+camera), event (time/GPS) groupers → `groups`/`group_items`.
-      *Done when:* a burst folder collapses to one rep with ranked members.
-- [ ] Semantic clustering (HDBSCAN over CLIP kNN) → `semantic` groups.
-      *Done when:* themes appear and are browsable via `/groups?kind=semantic`.
-- [ ] PaddleOCR worker → `ocr` (FTS5) + `ocr_regions`; wire FTS into search fusion + tags endpoints.
-      *Done when:* searching text visible in a photo returns it; tags CRUD works.
-- [ ] **Benchmark/test:** grouping precision/recall on a labeled set + OCR search recall → `benchmarks`.
-      *Done when:* `grouping_f1` and `ocr_recall` recorded from a real run.
+
+> **Status.** All four groupers, OCR/FTS, tags, and search fusion are built and green
+> (65 backend tests). **Two documented divergences from the plan** (both keep the app
+> local-first + CI lean; see ARCHITECTURE §5/§6): OCR uses **Apple Vision** (`ocrmac`),
+> not PaddleOCR (paddlepaddle is ARM-Mac-flaky); semantic themes use the **Chinese
+> Whispers kNN clusterer** already shipped for faces, not HDBSCAN (avoids a scikit-learn
+> dependency). OCR is macOS-only and, like faces, **skips gracefully on CI/Linux**
+> (`uv sync --extra embed`), so both stages stay out of CI. Grouping runs as a batch
+> `_run_grouping` pass at the end of ingest; group reps use a resolution proxy until the
+> Phase 5 quality scores exist.
+
+- [x] Near-dup (phash+cosine), burst (time+camera), event (time/GPS) groupers → `groups`/`group_items`. — `grouping/{near_dup,events,service}.py`, `db/groups.py`
+      *Done:* `GroupingService.rebuild` writes all layers; near-dup pairs the exact-dup set, bursts collapse to a resolution-best rep with ranked members (test_grouping).
+- [x] Semantic clustering (Chinese Whispers over CLIP kNN; HDBSCAN deviation, §5) → `semantic` groups. — `grouping/semantic.py`, `api/groups.py`, `frontend/src/components/GroupsPanel.tsx`
+      *Done:* themes form and are browsable via `GET /groups?kind=semantic` and the Groups view.
+- [x] Apple Vision OCR → `ocr` (FTS5) + `ocr_regions`; FTS fused into `/search` (RRF) + tags endpoints. — `ocr/{engine,service}.py`, `db/{ocr,tags}.py`, `api/{search,tags}.py`
+      *Done:* text visible in a photo is searchable (`test_ocr`, `test_search_fusion`); `has_text` filter + tags CRUD tested (`test_api_tags`).
+- [x] **Benchmark/test:** grouping precision/recall + OCR recall → `benchmarks`. — `scripts/bench_grouping.py`, `scripts/bench_ocr.py`
+      *Done (real runs):* near-dup `grouping_f1=1.0` + `event_recall=1.0` at `≈1976 photos/s` on a **clean synthetic** near-dup set (12 scenes × 4 JPEG variants — no adversarial collisions; a labeled real-photo set is a Phase 6 item). Apple Vision `ocr_recall=0.966` (28/29 words) at `≈7.9 img/s` on rendered-text images (throughput includes first-call model warmup; small bitmap font).
 
 ## Phase 5 — Trip triage & aesthetics
 - [ ] LAION aesthetic + OpenCV quality scorers populate `aesthetic`/`quality`.

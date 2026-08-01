@@ -1,4 +1,9 @@
-"""Semantic search endpoint (ARCHITECTURE §4/§8)."""
+"""Semantic + full-text search endpoint (ARCHITECTURE §4/§8).
+
+Semantic (CLIP) ranking is fused with OCR full-text (FTS5/bm25) via reciprocal-rank
+fusion so a query like "boarding pass" matches both what a photo *looks like* and the
+text printed in it. Text-free libraries fall back transparently to pure semantic ranking.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from iris import search as search_engine
 from iris.config import Settings
+from iris.db import ocr as ocr_db
 from iris.db import photos as photos_db
 from iris.dependencies import DbDep
 from iris.embeddings.service import EmbeddingService
@@ -26,7 +32,6 @@ def search(body: SearchRequest, request: Request, db: DbDep) -> SearchResponse:
     settings: Settings = request.app.state.settings
     service: EmbeddingService = request.app.state.embeddings
 
-    query_vec = service.embedder().embed_texts([query])[0]
     candidates = None
     if body.filters is not None:
         candidates = search_engine.build_candidates(
@@ -35,7 +40,12 @@ def search(body: SearchRequest, request: Request, db: DbDep) -> SearchResponse:
             date_from=body.filters.date_from,
             date_to=body.filters.date_to,
         )
-    result = search_engine.semantic_search(
+        if body.filters.has_text:
+            with_text = ocr_db.photos_with_text(db)
+            candidates = with_text if candidates is None else (candidates & with_text)
+
+    query_vec = service.embedder().embed_texts([query])[0]
+    semantic = search_engine.semantic_search(
         service,
         db,
         query_vec,
@@ -45,7 +55,22 @@ def search(body: SearchRequest, request: Request, db: DbDep) -> SearchResponse:
         filtered_max=settings.search_filtered_max,
     )
 
-    rows = photos_db.photos_by_ids(db, [hit.photo_id for hit in result.hits])
+    # Full-text (OCR) branch — over-fetch so fusion has depth, then apply the filter.
+    ocr_ids = ocr_db.search_ocr(db, query, limit * 5)
+    if candidates is not None:
+        ocr_ids = [pid for pid in ocr_ids if pid in candidates]
+
+    if ocr_ids:
+        fused = search_engine.reciprocal_rank_fusion(
+            [[hit.photo_id for hit in semantic.hits], ocr_ids]
+        )[:limit]
+        tier = "fused"
+        ranked = fused
+    else:
+        tier = semantic.tier
+        ranked = [(hit.photo_id, hit.score) for hit in semantic.hits]
+
+    rows = photos_db.photos_by_ids(db, [pid for pid, _ in ranked])
     items = [
         SearchItem(
             id=row["id"],
@@ -55,9 +80,9 @@ def search(body: SearchRequest, request: Request, db: DbDep) -> SearchResponse:
             width=row["width"],
             height=row["height"],
             has_thumb=row["thumb_at"] is not None,
-            score=hit.score,
+            score=score,
         )
-        for hit in result.hits
-        if (row := rows.get(hit.photo_id)) is not None
+        for pid, score in ranked
+        if (row := rows.get(pid)) is not None
     ]
-    return SearchResponse(tier=result.tier, items=items)
+    return SearchResponse(tier=tier, items=items)

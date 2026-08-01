@@ -32,6 +32,32 @@ export type Person = {
 };
 export type PersonDetail = { person: Person; photos: Photo[] };
 
+export type GroupKind = "event" | "burst" | "near_dup" | "semantic";
+
+export type Group = {
+  id: number;
+  kind: string;
+  key: string | null;
+  rep_photo_id: number | null;
+  size: number;
+  score: number | null;
+  start_at: number | null;
+  end_at: number | null;
+};
+export type GroupDetail = { group: Group; photos: Photo[] };
+
+export type Tag = { id: number; name: string; kind: string; count?: number | null };
+
+export type OcrRegion = {
+  bx: number;
+  by: number;
+  bw: number;
+  bh: number;
+  conf: number;
+  text: string;
+};
+export type OcrResponse = { photo_id: number; text: string; regions: OcrRegion[] };
+
 export type Job = {
   id: number;
   kind: string;
@@ -101,6 +127,20 @@ export function makeApi(baseUrl: string) {
     splitPerson: (id: number) =>
       json<{ clusters: number }>(`/people/${id}/split`, { method: "POST" }),
     recluster: () => json<{ people: number }>("/faces/recluster", { method: "POST" }),
+    groups: (kind: GroupKind, limit = 200) =>
+      json<Group[]>(`/groups?kind=${kind}&limit=${limit}`),
+    group: (id: number) => json<GroupDetail>(`/groups/${id}`),
+    tags: () => json<Tag[]>("/tags"),
+    photoTags: (id: number) => json<Tag[]>(`/photos/${id}/tags`),
+    addPhotoTag: (id: number, name: string) =>
+      json<Tag>(`/photos/${id}/tags`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name }),
+      }),
+    removePhotoTag: (id: number, tagId: number) =>
+      json<{ ok: boolean }>(`/photos/${id}/tags/${tagId}`, { method: "DELETE" }),
+    photoOcr: (id: number) => json<OcrResponse>(`/photos/${id}/ocr`),
     thumbUrl: (id: number) => `${baseUrl}/thumb/${id}`,
   };
 }

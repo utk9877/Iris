@@ -5,6 +5,7 @@ import { PhotoGrid } from "./components/PhotoGrid";
 import { ScanBar } from "./components/ScanBar";
 import { SearchBar, type SearchState } from "./components/SearchBar";
 import { PeoplePanel } from "./components/PeoplePanel";
+import { GroupsPanel } from "./components/GroupsPanel";
 import "./App.css";
 import "./styles.css";
 
@@ -14,7 +15,7 @@ function App() {
   const [reloadKey, setReloadKey] = useState(0);
   const [count, setCount] = useState<number | null>(null);
   const [search, setSearch] = useState<SearchState>(null);
-  const [view, setView] = useState<"photos" | "people">("photos");
+  const [view, setView] = useState<"photos" | "people" | "groups">("photos");
 
   useEffect(() => {
     if (!api) return;
@@ -54,11 +55,16 @@ function App() {
           <button className={view === "people" ? "on" : ""} onClick={() => setView("people")}>
             People
           </button>
+          <button className={view === "groups" ? "on" : ""} onClick={() => setView("groups")}>
+            Groups
+          </button>
         </nav>
         <span className="count">{count ?? "—"} photos</span>
       </header>
       {view === "people" ? (
         <PeoplePanel api={api} />
+      ) : view === "groups" ? (
+        <GroupsPanel api={api} />
       ) : (
         <>
           <ScanBar api={api} onComplete={() => setReloadKey((k) => k + 1)} />

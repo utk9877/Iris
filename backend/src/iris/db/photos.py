@@ -246,6 +246,21 @@ def set_faces_done(conn: sqlite3.Connection, photo_id: int, now: float) -> None:
     )
 
 
+def fetch_grouping_rows(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Timeline-ordered rows the groupers need (ARCHITECTURE §5).
+
+    Ordered by ``(sort_at, id)`` so event/burst segmentation can walk it linearly.
+    Only photos that reached the thumbnail stage (phash set) are included, since
+    near-dup/semantic grouping needs a phash and/or embedding.
+    """
+    rows = conn.execute(
+        "SELECT id, sort_at, taken_at, camera_model, phash, embed_row, gps_lat, gps_lon, "
+        "width, height FROM photos "
+        "WHERE missing = 0 AND phash IS NOT NULL ORDER BY sort_at, id"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def photos_by_ids(conn: sqlite3.Connection, ids: list[int]) -> dict[int, dict[str, Any]]:
     """Fetch grid-column rows for a set of ids (for hydrating search results)."""
     result: dict[int, dict[str, Any]] = {}
