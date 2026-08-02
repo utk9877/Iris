@@ -64,6 +64,15 @@ def test_full_ingest(settings: Settings, tmp_path: Path) -> None:
             "SELECT COUNT(*) FROM photos WHERE content_hash IS NOT NULL"
         ).fetchone()[0]
         assert hashed == 4
+
+        # The 3 decodable photos were scored (aesthetic + quality + marker set);
+        # the unreadable file has no thumbnail/phash so it is never scored.
+        scored = conn.execute(
+            "SELECT COUNT(*) FROM photos "
+            "WHERE scored_at IS NOT NULL AND aesthetic IS NOT NULL AND quality IS NOT NULL"
+        ).fetchone()[0]
+        assert scored == 3
+        assert photos_db.count_pending_score(conn) == 0
     finally:
         conn.close()
 

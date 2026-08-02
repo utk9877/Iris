@@ -231,3 +231,48 @@ class OcrResponse(BaseModel):
     photo_id: int
     text: str
     regions: list[OcrRegionOut]
+
+
+# --- Trip triage (ARCHITECTURE §7/§8), Phase 5 ---
+
+
+class TriageRequest(BaseModel):
+    """Scope is a group (event/burst/theme) *or* a date range; preset picks the profile."""
+
+    group_id: int | None = None
+    date_from: float | None = None
+    date_to: float | None = None
+    preset: str | None = None  # None -> default preset
+    limit: int = 50
+
+
+class TriageItemOut(BaseModel):
+    id: int
+    filename: str
+    sort_at: float | None
+    taken_at: float | None
+    width: int | None
+    height: int | None
+    has_thumb: bool
+    score: float  # pick-score (keep presets) or badness (delete-candidates)
+    quality: float  # the four are percentile-normalized in [0, 1]
+    aesthetic: float
+    representativeness: float
+    subject: float
+    reason: str
+    redundant: bool
+
+
+class TriageResponse(BaseModel):
+    preset: str
+    scope_size: int
+    considered: int
+    items: list[TriageItemOut]
+
+
+class PresetOut(BaseModel):
+    name: str
+    description: str
+    weights: dict[str, float]
+    lam: float
+    invert: bool

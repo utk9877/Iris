@@ -96,6 +96,27 @@ def group_photo_ids(conn: sqlite3.Connection, group_id: int) -> list[int]:
     return [int(r[0]) for r in rows]
 
 
+def member_group_map(conn: sqlite3.Connection, kind: str, photo_ids: list[int]) -> dict[int, int]:
+    """Map ``photo_id -> group_id`` for one ``kind``, limited to ``photo_ids``.
+
+    Used by triage to collapse near-duplicate / burst members before diversifying
+    (ARCHITECTURE §5/§7). A photo absent from the map is a singleton for that kind.
+    """
+    result: dict[int, int] = {}
+    for start in range(0, len(photo_ids), 900):
+        chunk = photo_ids[start : start + 900]
+        placeholders = ",".join("?" for _ in chunk)
+        rows = conn.execute(
+            "SELECT gi.photo_id, gi.group_id FROM group_items gi "
+            "JOIN groups g ON g.id = gi.group_id "
+            f"WHERE g.kind = ? AND gi.photo_id IN ({placeholders})",
+            [kind, *chunk],
+        ).fetchall()
+        for row in rows:
+            result[int(row[0])] = int(row[1])
+    return result
+
+
 def groups_for_photo(conn: sqlite3.Connection, photo_id: int) -> list[dict[str, Any]]:
     rows = conn.execute(
         "SELECT g.id, g.kind, g.key, g.size FROM groups g "

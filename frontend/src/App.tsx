@@ -6,6 +6,7 @@ import { ScanBar } from "./components/ScanBar";
 import { SearchBar, type SearchState } from "./components/SearchBar";
 import { PeoplePanel } from "./components/PeoplePanel";
 import { GroupsPanel } from "./components/GroupsPanel";
+import { TriagePanel } from "./components/TriagePanel";
 import "./App.css";
 import "./styles.css";
 
@@ -15,7 +16,7 @@ function App() {
   const [reloadKey, setReloadKey] = useState(0);
   const [count, setCount] = useState<number | null>(null);
   const [search, setSearch] = useState<SearchState>(null);
-  const [view, setView] = useState<"photos" | "people" | "groups">("photos");
+  const [view, setView] = useState<"photos" | "people" | "groups" | "triage">("photos");
 
   useEffect(() => {
     if (!api) return;
@@ -58,6 +59,9 @@ function App() {
           <button className={view === "groups" ? "on" : ""} onClick={() => setView("groups")}>
             Groups
           </button>
+          <button className={view === "triage" ? "on" : ""} onClick={() => setView("triage")}>
+            Triage
+          </button>
         </nav>
         <span className="count">{count ?? "—"} photos</span>
       </header>
@@ -65,6 +69,8 @@ function App() {
         <PeoplePanel api={api} />
       ) : view === "groups" ? (
         <GroupsPanel api={api} />
+      ) : view === "triage" ? (
+        <TriagePanel api={api} />
       ) : (
         <>
           <ScanBar api={api} onComplete={() => setReloadKey((k) => k + 1)} />

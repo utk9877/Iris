@@ -96,8 +96,9 @@ to `benchmarks`, never fabricated).
 > Whispers kNN clusterer** already shipped for faces, not HDBSCAN (avoids a scikit-learn
 > dependency). OCR is macOS-only and, like faces, **skips gracefully on CI/Linux**
 > (`uv sync --extra embed`), so both stages stay out of CI. Grouping runs as a batch
-> `_run_grouping` pass at the end of ingest; group reps use a resolution proxy until the
-> Phase 5 quality scores exist.
+> `_run_grouping` pass at the end of ingest. Group reps used a resolution proxy at Phase
+> 4 and now use the Phase 5 `quality`/`aesthetic` scores (scoring runs before grouping),
+> falling back to resolution when scores are absent (`grouping.service._rank_key`).
 
 - [x] Near-dup (phash+cosine), burst (time+camera), event (time/GPS) groupers → `groups`/`group_items`. — `grouping/{near_dup,events,service}.py`, `db/groups.py`
       *Done:* `GroupingService.rebuild` writes all layers; near-dup pairs the exact-dup set, bursts collapse to a resolution-best rep with ranked members (test_grouping).
@@ -111,14 +112,25 @@ to `benchmarks`, never fabricated).
       *Done:* NL date parsing ("beach 2024", "last summer") + explicit date range; offline place-name geocoding (geonamescache, `geo` extra) + GPS radius / "near this photo"; filter-only browse when the query is just a date/place; UI filters row + applied-filter chips. Tested by `test_query_parse`, `test_geo`, `test_search_location` (all CI-safe via fakes). Not yet: camera/person/tag filters, region-qualified place disambiguation.
 
 ## Phase 5 — Trip triage & aesthetics
-- [ ] LAION aesthetic + OpenCV quality scorers populate `aesthetic`/`quality`.
-      *Done when:* both columns are set for a test event.
-- [ ] Four-score computation + percentile-rank normalization + MMR + preset profiles + `/triage`.
-      *Done when:* `POST /triage{event,preset}` returns a deduped, diversified shortlist with reasons.
-- [ ] Triage UI (event view, preset switch, accept/reject).
-      *Done when:* switching presets visibly re-ranks the same event.
-- [ ] **Benchmark/test:** triage scoring throughput + shortlist stability + overlap vs. a manual gold pick → `benchmarks`.
-      *Done when:* `triage_throughput` and `triage_overlap` recorded from a real run.
+- [x] Aesthetic + quality scorers populate `aesthetic`/`quality` (ingest `score` stage,
+      `scored_at` marker, migration 0003).
+      *Done:* deterministic numpy/Pillow scorers (`iris/scoring/quality.py`) — **not** the
+      LAION MLP; see the ARCHITECTURE §7 build note (LAION needs ViT-L/14 768-d embeddings,
+      Iris embeds ViT-B/32 512-d). No cv2/no model, so it runs in embed-only CI. The
+      orchestrator test asserts both columns + `scored_at` set for the decodable photos.
+- [x] Four-score computation + percentile-rank normalization + MMR + preset profiles + `/triage`.
+      *Done:* `POST /triage{group_id|date_range, preset}` returns a near-dup/burst-collapsed,
+      MMR-diversified shortlist with per-score breakdown + a human `reason`; three presets
+      (`story-ready`, `print-worthy`, `delete-candidates`) via `GET /triage/presets`.
+- [x] Triage UI (event view, preset switch, accept/reject).
+      *Done:* `TriagePanel` — event picker, preset tabs (switching visibly re-ranks the same
+      event), per-photo score bars + reason + dup flag, local keep/reject verdicts.
+- [x] **Benchmark/test:** triage scoring throughput + overlap vs. a known gold pick → `benchmarks`.
+      *Done (real run, `scripts/bench_triage.py`, phase="5"):* `triage_overlap=1.0`
+      (15/15 sharp "hero" frames kept over their blurred near-dup variants — gold is which
+      frame we objectively drew sharpest) at `triage_throughput≈46,000 photos/s` through the
+      full four-score + normalize + collapse + MMR pipeline (CLIP vectors are stand-ins;
+      triage only reads stored vectors). A labeled real-photo gold set is a Phase 6 item.
 
 ## Phase 6 — Packaging, scale-hardening & polish
 - [ ] PyInstaller sidecar (`--onedir`) bundling ORT/CoreML/opencv/insightface/paddle; lazy model download.

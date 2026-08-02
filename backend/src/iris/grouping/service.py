@@ -33,10 +33,24 @@ def _resolution(row: Row) -> int:
     return int((row["width"] or 0) * (row["height"] or 0))
 
 
-def _rep_by_resolution(rows: list[Row]) -> int:
-    """Best-quality proxy until Phase 5 scores exist: highest-resolution frame."""
-    best = max(rows, key=lambda r: (_resolution(r), -r["id"]))
-    return int(best["id"])
+def _rank_key(row: Row) -> tuple[float, float, int, int]:
+    """Sort key for picking the best frame of a group (highest first).
+
+    Prefers the Phase 5 technical ``quality`` then ``aesthetic`` scores; falls back to
+    resolution (then lowest id) when scores are absent (NULL -> 0.0), so groups built
+    before scoring still get a sensible representative.
+    """
+    return (
+        float(row.get("quality") or 0.0),
+        float(row.get("aesthetic") or 0.0),
+        _resolution(row),
+        -int(row["id"]),
+    )
+
+
+def _rep_best(rows: list[Row]) -> int:
+    """Representative = the highest-quality frame of the group (ARCHITECTURE §5/§7)."""
+    return int(max(rows, key=_rank_key)["id"])
 
 
 def _day_key(ts: float | None) -> str | None:
@@ -75,7 +89,7 @@ class GroupingService:
                 GroupSpec(
                     kind="event",
                     key=_day_key(event[0]["sort_at"]),
-                    rep_photo_id=_rep_by_resolution(event),
+                    rep_photo_id=_rep_best(event),
                     start_at=event[0]["sort_at"],
                     end_at=event[-1]["sort_at"],
                     members=[(r["id"], float(i)) for i, r in enumerate(event)],
@@ -90,7 +104,7 @@ class GroupingService:
                 specs.append(
                     GroupSpec(
                         kind="burst",
-                        rep_photo_id=_rep_by_resolution(burst),
+                        rep_photo_id=_rep_best(burst),
                         start_at=burst[0]["sort_at"],
                         end_at=burst[-1]["sort_at"],
                         members=[(r["id"], float(i)) for i, r in enumerate(burst)],
@@ -109,7 +123,7 @@ class GroupingService:
         )
         specs: list[GroupSpec] = []
         for comp in components:
-            ranked = sorted(comp, key=lambda r: (-_resolution(r), r["id"]))  # best first
+            ranked = sorted(comp, key=_rank_key, reverse=True)  # best (highest quality) first
             specs.append(
                 GroupSpec(
                     kind="near_dup",
