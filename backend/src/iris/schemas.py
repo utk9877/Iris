@@ -276,3 +276,30 @@ class PresetOut(BaseModel):
     weights: dict[str, float]
     lam: float
     invert: bool
+
+
+# --- Maintenance: storage + memmap compaction (ARCHITECTURE §3), Phase 6 ---
+
+
+class CacheStat(BaseModel):
+    bytes: int
+    cap_bytes: int | None = None  # None = uncapped (grows with library)
+    over_cap: bool = False
+
+
+class StorageStats(BaseModel):
+    thumbs: CacheStat  # durable; soft cap reported, not evicted
+    previews: CacheStat  # LRU cache; hard cap enforced on write
+    embeddings: CacheStat  # memmap vector stores (uncapped)
+    database: CacheStat  # sqlite + wal (uncapped)
+
+
+class CompactStat(BaseModel):
+    before: int
+    after: int
+    reclaimed: int
+
+
+class CompactResponse(BaseModel):
+    clip: CompactStat
+    faces: CompactStat

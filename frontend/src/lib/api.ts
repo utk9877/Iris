@@ -114,6 +114,16 @@ export type TriageRequest = {
   limit?: number;
 };
 
+export type CacheStat = { bytes: number; cap_bytes: number | null; over_cap: boolean };
+export type StorageStats = {
+  thumbs: CacheStat;
+  previews: CacheStat;
+  embeddings: CacheStat;
+  database: CacheStat;
+};
+export type CompactStat = { before: number; after: number; reclaimed: number };
+export type CompactResponse = { clip: CompactStat; faces: CompactStat };
+
 export type Job = {
   id: number;
   kind: string;
@@ -204,6 +214,9 @@ export function makeApi(baseUrl: string) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ limit: 60, ...req }),
       }),
+    storage: () => json<StorageStats>("/maintenance/storage"),
+    compact: () => json<CompactResponse>("/maintenance/compact", { method: "POST" }),
     thumbUrl: (id: number) => `${baseUrl}/thumb/${id}`,
+    previewUrl: (id: number) => `${baseUrl}/preview/${id}`,
   };
 }

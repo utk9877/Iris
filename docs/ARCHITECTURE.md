@@ -248,6 +248,16 @@ temp-file + rename. Thumb = webp q≈80, 256 px long edge (~30 KB); preview = 10
 ~30 KB ≈ **~3 GB** arithmetic), soft cap `thumb_max_gb=8`. `cache/previews/` is
 LRU-evicted, `preview_cache_gb=2`. Memmaps + DB are not capped (grow with library).
 
+> **Build note — Phase 6 (cache + compaction).** Previews are rendered **on demand** by
+> `GET /preview/{id}` (1024 px WebP from the original, read-only) via `iris/cache/previews.py`,
+> content-addressed by `content_hash`. Each serve touches the file mtime; after a render we
+> evict least-recently-used previews until the dir is under `preview_cache_gb` (a **hard**
+> cap). Thumbs are never evicted — `GET /maintenance/storage` just **reports** usage vs.
+> `thumb_max_gb`. The memmap "free rows compacted lazily" note above is realized by
+> `POST /maintenance/compact`: `VectorStore.compact()` rewrites `clip.f32`/`faces.f32`
+> keeping only rows a live photo/face still references, renumbers `photos.embed_row` /
+> `faces.embed_row`, and rebuilds the hnsw index — refused (409) while ingest is running.
+
 ## 4. Search architecture
 
 Text query → CLIP/SigLIP **text embedding** (query vector). Metadata filters (date,

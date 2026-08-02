@@ -95,3 +95,27 @@ class VectorStore:
         if not rows:
             return np.empty((0, self.dim), dtype=np.float32)
         return np.asarray(self.matrix()[list(rows)], dtype=np.float32)
+
+    def compact(self, live_rows: Sequence[int]) -> dict[int, int]:
+        """Rewrite the store keeping only ``live_rows`` (old indices), in that order.
+
+        Returns ``{old_row: new_row}`` so the caller can renumber the DB pointers.
+        Orphaned rows (no live pointer — from re-embeds or removed photos) are dropped,
+        reclaiming disk. Atomic: gathers the live vectors into memory, writes a temp file,
+        fsyncs, then renames over the data file and updates the meta count. Must run with
+        no concurrent writers (maintenance only).
+        """
+        live = list(live_rows)
+        if live:
+            data = np.ascontiguousarray(self.matrix()[live], dtype=np.float32)
+        else:
+            data = np.empty((0, self.dim), dtype=np.float32)
+        tmp = self.data_path.parent / f".{self.data_path.name}.compact.tmp"
+        with tmp.open("wb") as handle:
+            handle.write(data.tobytes())
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, self.data_path)
+        self._count = len(live)
+        self._write_meta()
+        return {old: new for new, old in enumerate(live)}
