@@ -37,6 +37,7 @@ from iris.ingest.metadata import extract_metadata
 from iris.ingest.scanner import iter_image_files
 from iris.ingest.thumbnails import render_thumbnail
 from iris.ocr.service import OcrService
+from iris.scoring import score_image
 from iris.storage import content_shard_path
 
 logger = logging.getLogger("iris.ingest")
@@ -44,6 +45,17 @@ logger = logging.getLogger("iris.ingest")
 _SCAN_COMMIT_EVERY = 1000
 _METADATA_BATCH = 256
 _THUMB_BATCH = 128
+_SCORE_BATCH = 256
+
+
+def _score_thumb(path: Path) -> tuple[float, float] | None:
+    """Open a thumbnail and return ``(aesthetic, quality)``, or None if it won't read."""
+    try:
+        with Image.open(path) as image:
+            scores = score_image(image)
+    except Exception:
+        return None
+    return scores.aesthetic, scores.quality
 
 
 class IngestManager:
@@ -118,6 +130,7 @@ class IngestManager:
         try:
             self._scan(conn)
             total = photos_db.count_pending_thumb(conn)
+            total += photos_db.count_pending_score(conn)
             if self._embeddings is not None:
                 total += photos_db.count_pending_embed(conn)
             if self._faces is not None:
@@ -129,6 +142,8 @@ class IngestManager:
             self._run_metadata(conn)
             if not self._cancel.is_set():
                 self._run_thumbs(conn, job_id)
+            if not self._cancel.is_set():
+                self._run_score(conn, job_id)
             if self._embeddings is not None and not self._cancel.is_set():
                 self._run_embed(conn, job_id, self._embeddings)
             if self._faces is not None and not self._cancel.is_set():
@@ -275,6 +290,42 @@ class IngestManager:
         except Exception:
             conn.execute("ROLLBACK")
             raise
+
+    def _run_score(self, conn: sqlite3.Connection, job_id: int) -> None:
+        """Compute per-photo aesthetic + technical quality from thumbnails (§7).
+
+        Runs on every ingest (the scorers are pure numpy/Pillow — no model, no extra),
+        reading the already-rendered thumbnail to avoid a second decode. A thumbnail
+        that won't open is marked skipped so it is not retried forever.
+        """
+        thumbs_dir = self._settings.thumbs_dir
+        with ThreadPoolExecutor(max_workers=self._settings.metadata_workers) as pool:
+            while not self._cancel.is_set():
+                batch = photos_db.fetch_pending_score(conn, _SCORE_BATCH)
+                if not batch:
+                    break
+                futures = {
+                    pid: pool.submit(_score_thumb, content_shard_path(thumbs_dir, digest, "webp"))
+                    for pid, digest in batch
+                }
+                now = time.time()
+                conn.execute("BEGIN")
+                try:
+                    for pid, future in futures.items():
+                        scores = future.result()
+                        if scores is None:
+                            photos_db.mark_score_skipped(conn, pid, now)
+                            self._errored += 1
+                        else:
+                            photos_db.set_scores(conn, pid, scores[0], scores[1], now)
+                        self._done += 1
+                    conn.execute("COMMIT")
+                except Exception:
+                    conn.execute("ROLLBACK")
+                    raise
+                jobs_db.update_job(
+                    conn, job_id, now=time.time(), done=self._done, errored=self._errored
+                )
 
     def _run_embed(
         self, conn: sqlite3.Connection, job_id: int, embeddings: EmbeddingService

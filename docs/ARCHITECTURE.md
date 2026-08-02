@@ -48,12 +48,13 @@ CREATE TABLE photos (
   gps_lon       REAL,
   phash         INTEGER,                   -- 64-bit perceptual hash (near-dup)
   sort_at       REAL,                      -- COALESCE(taken_at, mtime); keyset sort key [migration 0002]
-  aesthetic     REAL,                      -- LAION score
-  quality       REAL,                      -- technical (sharpness/exposure)
+  aesthetic     REAL,                      -- aesthetic heuristic [0,1] (§7 build note)
+  quality       REAL,                      -- technical quality [0,1] (sharpness/exposure)
   embed_row     INTEGER,                   -- row index into clip memmap (nullable)
   -- per-stage completion markers (NULL = pending; power crash-resume):
   hashed_at     REAL, exif_at REAL, thumb_at REAL,
   embed_at      REAL, phash_at REAL, faces_at REAL, ocr_at REAL,
+  scored_at     REAL,                      -- aesthetic/quality scored [migration 0003]
   missing       INTEGER NOT NULL DEFAULT 0,-- source file gone (soft-delete)
   created_at    REAL NOT NULL,
   updated_at    REAL NOT NULL
@@ -347,9 +348,30 @@ identical frames. Semantic membership additionally feeds MMR diversity.
 
 ## 7. Trip triage
 
-Per-photo **four scores**: **technical quality** (OpenCV sharpness/exposure),
-**aesthetic** (LAION predictor), **representativeness** (cosine to the event/semantic
-centroid), **subject/face** (face presence × quality × known-person weight).
+Per-photo **four scores**: **technical quality** (sharpness/exposure), **aesthetic**
+(colorfulness/saturation/contrast — see the LAION note below), **representativeness**
+(cosine to the event/semantic centroid), **subject/face** (face presence × quality ×
+known-person weight).
+
+> **Build note — Phase 5 (aesthetic scorer, divergence from the plan).** The plan named
+> the **LAION aesthetic predictor** for the aesthetic score. That model is a small MLP
+> head trained on **OpenAI CLIP ViT-L/14** (768-d) image embeddings; Iris embeds with
+> **ViT-B/32** (512-d), so the pretrained head is dimensionally incompatible. Rather
+> than ship a second CLIP (~1.7 GB) and re-embed the whole library for one score, Phase
+> 5 computes both `aesthetic` and `quality` with a **deterministic numpy/Pillow
+> heuristic** off the thumbnail (`iris/scoring/quality.py`): quality = variance-of-
+> Laplacian sharpness + exposure-clipping + contrast; aesthetic = Hasler-Süsstrunk
+> colorfulness + saturation + contrast. This needs **no model download and no cv2**, so
+> the scoring stage also runs in the embed-only CI env, and is a pure function so a
+> learned LAION/L-14 head can drop in later behind the same interface. Because triage
+> re-normalizes every score by percentile rank within the scope, only the *ordering*
+> these heuristics produce matters, not their absolute calibration.
+>
+> **Ingest wiring.** Scoring is a per-photo ingest stage (`orchestrator._run_score`,
+> thread pool over thumbnails) gated by a `photos.scored_at` marker (migration
+> `0003_scoring.sql`) exactly like the other `*_at` stages, so it is crash-resumable.
+> Representativeness and subject are **scope-dependent** and computed at `/triage` time
+> from stored CLIP vectors + the `faces`/`clusters` tables, not persisted.
 
 **Normalization:** **percentile-rank within the current scope** (event/trip) → [0,1].
 Rank normalization is outlier-robust and makes the four comparable before weighting.
@@ -363,9 +385,10 @@ collapse + burst-best selection (§5).
 - **story-ready** — `[.25,.25,.30,.20]`, `λ=0.6` (balanced, more diverse).
 - **print-worthy** — `[.35,.45,.10,.10]`, `λ=0.85` (favor beauty+technical; allow
   similar if both excellent).
-- **delete-candidates** — *inverted*: rank by low quality + redundancy (near-dup group
-  size, blur, closed eyes); skip MMR, instead surface all-but-best of each near-dup /
-  burst group. Weights `[.5,.2,—,—]` on inverted quality/aesthetic + redundancy bonus.
+- **delete-candidates** — *inverted*: rank by **badness** = `.5·(1−quality) +
+  .2·(1−aesthetic) + redundancy_bonus`, worst first; skip MMR, and surface the
+  all-but-best members of each near-dup / burst cluster (the redundant frames) plus
+  any low-quality singletons. The per-cluster keeper (highest quality) is excluded.
 
 ## 8. API surface (FastAPI, localhost)
 

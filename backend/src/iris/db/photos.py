@@ -255,10 +255,89 @@ def fetch_grouping_rows(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """
     rows = conn.execute(
         "SELECT id, sort_at, taken_at, camera_model, phash, embed_row, gps_lat, gps_lon, "
-        "width, height FROM photos "
+        "width, height, aesthetic, quality FROM photos "
         "WHERE missing = 0 AND phash IS NOT NULL ORDER BY sort_at, id"
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+# --- Scoring stage (Phase 5, ARCHITECTURE §7) ---
+
+
+def count_pending_score(conn: sqlite3.Connection) -> int:
+    """Photos with a successful thumbnail (phash set) not yet scored.
+
+    Gated on ``phash IS NOT NULL`` — matching :func:`fetch_pending_score` — so a
+    decode-failed file (thumb_at set but no thumbnail/phash) is never counted as
+    perpetually pending, keeping the ingest job total accurate on resume.
+    """
+    row = conn.execute(
+        "SELECT COUNT(*) FROM photos WHERE missing = 0 AND scored_at IS NULL AND phash IS NOT NULL"
+    ).fetchone()
+    return int(row[0])
+
+
+def fetch_pending_score(conn: sqlite3.Connection, limit: int) -> list[tuple[int, str]]:
+    """Photos with a rendered thumbnail (phash set) but no aesthetic/quality score yet."""
+    rows = conn.execute(
+        "SELECT id, content_hash FROM photos "
+        "WHERE missing = 0 AND scored_at IS NULL AND phash IS NOT NULL "
+        "AND content_hash IS NOT NULL ORDER BY id LIMIT ?",
+        (limit,),
+    ).fetchall()
+    return [(int(r[0]), str(r[1])) for r in rows]
+
+
+def set_scores(
+    conn: sqlite3.Connection, photo_id: int, aesthetic: float, quality: float, now: float
+) -> None:
+    conn.execute(
+        "UPDATE photos SET aesthetic = ?, quality = ?, scored_at = ?, updated_at = ? WHERE id = ?",
+        (aesthetic, quality, now, now, photo_id),
+    )
+
+
+def mark_score_skipped(conn: sqlite3.Connection, photo_id: int, now: float) -> None:
+    """Mark a photo scored-but-scoreless (thumbnail unreadable) so it isn't retried."""
+    conn.execute(
+        "UPDATE photos SET scored_at = ?, updated_at = ? WHERE id = ?", (now, now, photo_id)
+    )
+
+
+def photos_in_range(
+    conn: sqlite3.Connection, date_from: float | None, date_to: float | None
+) -> list[int]:
+    """Non-missing photo ids whose ``sort_at`` falls in ``[date_from, date_to]``."""
+    where = "missing = 0 AND sort_at IS NOT NULL"
+    params: list[Any] = []
+    if date_from is not None:
+        where += " AND sort_at >= ?"
+        params.append(date_from)
+    if date_to is not None:
+        where += " AND sort_at <= ?"
+        params.append(date_to)
+    rows = conn.execute(
+        f"SELECT id FROM photos WHERE {where} ORDER BY sort_at, id", params
+    ).fetchall()
+    return [int(r[0]) for r in rows]
+
+
+def triage_rows(conn: sqlite3.Connection, ids: list[int]) -> dict[int, dict[str, Any]]:
+    """Per-photo columns triage needs (grid fields + scores + embed_row), keyed by id."""
+    result: dict[int, dict[str, Any]] = {}
+    columns = (
+        "id, filename, content_hash, sort_at, taken_at, width, height, thumb_at, "
+        "aesthetic, quality, embed_row"
+    )
+    for start in range(0, len(ids), 900):
+        chunk = ids[start : start + 900]
+        placeholders = ",".join("?" for _ in chunk)
+        rows = conn.execute(
+            f"SELECT {columns} FROM photos WHERE id IN ({placeholders})", chunk
+        ).fetchall()
+        for row in rows:
+            result[int(row["id"])] = dict(row)
+    return result
 
 
 def photos_by_ids(conn: sqlite3.Connection, ids: list[int]) -> dict[int, dict[str, Any]]:

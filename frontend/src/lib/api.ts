@@ -81,6 +81,39 @@ export type OcrRegion = {
 };
 export type OcrResponse = { photo_id: number; text: string; regions: OcrRegion[] };
 
+export type TriagePreset = {
+  name: string;
+  description: string;
+  weights: Record<string, number>;
+  lam: number;
+  invert: boolean;
+};
+
+export type TriageItem = Photo & {
+  score: number;
+  quality: number;
+  aesthetic: number;
+  representativeness: number;
+  subject: number;
+  reason: string;
+  redundant: boolean;
+};
+
+export type TriageResponse = {
+  preset: string;
+  scope_size: number;
+  considered: number;
+  items: TriageItem[];
+};
+
+export type TriageRequest = {
+  group_id?: number | null;
+  date_from?: number | null;
+  date_to?: number | null;
+  preset?: string | null;
+  limit?: number;
+};
+
 export type Job = {
   id: number;
   kind: string;
@@ -164,6 +197,13 @@ export function makeApi(baseUrl: string) {
     removePhotoTag: (id: number, tagId: number) =>
       json<{ ok: boolean }>(`/photos/${id}/tags/${tagId}`, { method: "DELETE" }),
     photoOcr: (id: number) => json<OcrResponse>(`/photos/${id}/ocr`),
+    triagePresets: () => json<TriagePreset[]>("/triage/presets"),
+    triage: (req: TriageRequest) =>
+      json<TriageResponse>("/triage", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ limit: 60, ...req }),
+      }),
     thumbUrl: (id: number) => `${baseUrl}/thumb/${id}`,
   };
 }

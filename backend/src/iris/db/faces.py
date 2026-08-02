@@ -36,6 +36,32 @@ def faces_for_photo(conn: sqlite3.Connection, photo_id: int) -> list[dict[str, A
     return [dict(r) for r in rows]
 
 
+def faces_with_person(
+    conn: sqlite3.Connection, photo_ids: list[int]
+) -> dict[int, list[tuple[float, bool]]]:
+    """Map ``photo_id -> [(face_quality, is_named_person), ...]`` for the given photos.
+
+    Feeds the triage *subject* score (ARCHITECTURE §7): face presence weighted by face
+    quality, with a bonus when the face belongs to a labeled (named) person cluster.
+    """
+    result: dict[int, list[tuple[float, bool]]] = {}
+    for start in range(0, len(photo_ids), 900):
+        chunk = photo_ids[start : start + 900]
+        placeholders = ",".join("?" for _ in chunk)
+        rows = conn.execute(
+            "SELECT f.photo_id, f.quality, c.label FROM faces f "
+            "LEFT JOIN clusters c ON c.id = f.cluster_id "
+            f"WHERE f.photo_id IN ({placeholders})",
+            chunk,
+        ).fetchall()
+        for row in rows:
+            named = row["label"] is not None and str(row["label"]).strip() != ""
+            result.setdefault(int(row["photo_id"]), []).append(
+                (float(row["quality"] or 0.0), named)
+            )
+    return result
+
+
 def pending_faces(conn: sqlite3.Connection) -> list[tuple[int, int, float]]:
     """(face_id, embed_row, quality) for faces not yet assigned to a person."""
     rows = conn.execute(
