@@ -18,6 +18,7 @@ from iris import __version__
 from iris.api.groups import router as groups_router
 from iris.api.ingest import router as ingest_router
 from iris.api.library import router as library_router
+from iris.api.maintenance import router as maintenance_router
 from iris.api.people import router as people_router
 from iris.api.photos import router as photos_router
 from iris.api.search import router as search_router
@@ -100,6 +101,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(groups_router)
     app.include_router(tags_router)
     app.include_router(triage_router)
+    app.include_router(maintenance_router)
     return app
 
 

@@ -84,6 +84,21 @@ def cluster_face_rows(conn: sqlite3.Connection, cluster_id: int) -> list[tuple[i
     return [(int(r[0]), int(r[1]), float(r[2] or 0.0)) for r in rows]
 
 
+def all_face_embed_rows(conn: sqlite3.Connection) -> list[tuple[int, int]]:
+    """(embed_row, face_id) for every face with a vector, ordered by embed_row.
+
+    Used by memmap compaction to renumber ``faces.embed_row`` after the store is rewritten.
+    """
+    rows = conn.execute(
+        "SELECT embed_row, id FROM faces WHERE embed_row IS NOT NULL ORDER BY embed_row"
+    ).fetchall()
+    return [(int(r[0]), int(r[1])) for r in rows]
+
+
+def set_face_embed_row(conn: sqlite3.Connection, face_id: int, embed_row: int) -> None:
+    conn.execute("UPDATE faces SET embed_row = ? WHERE id = ?", (embed_row, face_id))
+
+
 def assign_face(conn: sqlite3.Connection, face_id: int, cluster_id: int) -> None:
     conn.execute(
         "UPDATE faces SET cluster_id = ?, assigned = 1 WHERE id = ?", (cluster_id, face_id)

@@ -98,8 +98,10 @@ class Settings(BaseSettings):
     geo_min_population: int = 1000  # ignore hamlets when disambiguating a place name
 
     # --- Cache limits (ARCHITECTURE §3), config knobs surfaced early ---
-    thumb_max_gb: float = 8.0
-    preview_cache_gb: float = 2.0
+    thumb_max_gb: float = 8.0  # soft cap — thumbs are durable derived data (reported, not evicted)
+    preview_cache_gb: float = 2.0  # hard cap — previews are an LRU cache (Phase 6 eviction)
+    preview_max_edge: int = 1024  # long-edge px for on-demand previews
+    preview_quality: int = 82  # WebP quality for previews
 
     # ------------------------------------------------------------------ paths
     @property

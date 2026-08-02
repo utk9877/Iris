@@ -47,6 +47,26 @@ class FacesService:
             )
         return self._detector
 
+    def compact(self, conn: sqlite3.Connection) -> dict[str, int]:
+        """Reclaim orphaned face vectors and renumber ``faces.embed_row`` (ARCHITECTURE §3).
+
+        Faces reference the store by ``embed_row`` and cluster centroids are stored as raw
+        bytes (not row refs), so compaction only rewrites the memmap and repoints the face
+        rows — clusters are untouched. Run only when ingest is idle.
+        """
+        pairs = faces_db.all_face_embed_rows(conn)  # (embed_row, face_id) by embed_row
+        before = self._store.count
+        mapping = self._store.compact([old for old, _ in pairs])
+        conn.execute("BEGIN")
+        try:
+            for old_row, face_id in pairs:
+                faces_db.set_face_embed_row(conn, face_id, mapping[old_row])
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+        return {"before": before, "after": self._store.count, "reclaimed": before - len(pairs)}
+
     # ------------------------------------------------------------- centroids
     @staticmethod
     def _to_bytes(vec: Vectors) -> bytes:

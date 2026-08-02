@@ -133,13 +133,37 @@ to `benchmarks`, never fabricated).
       triage only reads stored vectors). A labeled real-photo gold set is a Phase 6 item.
 
 ## Phase 6 — Packaging, scale-hardening & polish
-- [ ] PyInstaller sidecar (`--onedir`) bundling ORT/CoreML/opencv/insightface/paddle; lazy model download.
-      *Done when:* the packaged sidecar starts with no dev Python present.
-- [ ] Tauri release bundle + code signing + notarization.
-      *Done when:* a signed, notarized `.app`/`.dmg` launches on a clean Mac.
-- [ ] LRU preview-cache eviction + memmap compaction + crash-resume soak.
-      *Done when:* caches respect configured caps; a kill-storm leaves the DB consistent.
-- [ ] Full-scale run on the real ~100k / 500 GB library; profile and tune tier thresholds + batch sizes.
-      *Done when:* a complete ingest finishes and tuned thresholds are committed.
-- [ ] **Benchmark:** end-to-end 100k ingest time, peak memory, search p95 at full scale → `benchmarks`.
-      *Done when:* `e2e_ingest`, `peak_rss`, `search_p95_full` recorded from the real 100k run.
+
+> **Scope note.** This phase splits into *software hardening* (fully built + tested here)
+> and *resource-gated delivery* — a signed/notarized build needs an Apple Developer cert
+> and the Rust toolchain; the headline scale numbers need the real ~100k/500 GB library.
+> The build **configuration** and the **e2e harness** are committed; the two boxes that
+> require those resources are marked **[ ] (you run)** with the exact commands.
+
+- [x] LRU preview-cache eviction + memmap compaction + crash-resume soak.
+      *Done:* `GET /preview/{id}` renders 1024 px WebP on demand (read-only) and LRU-evicts
+      to `preview_cache_gb`; `GET /maintenance/storage` reports thumb/preview/embeddings/db
+      usage vs. caps; `POST /maintenance/compact` reclaims orphaned `clip.f32`/`faces.f32`
+      rows + renumbers `embed_row` + rebuilds the index (409 while ingest runs). Soak test
+      `test_soak.py` kill-storms ingest (repeated cancel/resume) then asserts every stage
+      completes, no duplicate rows, and `PRAGMA integrity_check = ok`. (`test_previews`,
+      `test_compaction`, `test_api_maintenance`, `test_soak`.) Also fixed an hnswlib
+      segfault on saving an empty index (surfaced by compacting away every vector).
+- [ ] **(you run)** PyInstaller sidecar (`--onedir`) bundling ORT/CoreML/opencv/insightface; lazy model download.
+      *Scaffolded:* `backend/iris-sidecar.spec` (+ `packaging/entrypoint.py`) and
+      `scripts/build_sidecar.sh`, which builds and **smoke-tests that the frozen binary
+      prints `IRIS_SIDECAR_READY` with no dev Python**, then stages it into `src-tauri`.
+      Run `scripts/build_sidecar.sh` on a Mac with the ML extras. *Done when:* it starts
+      with no dev Python present.
+- [ ] **(you run)** Tauri release bundle + code signing + notarization.
+      *Scaffolded:* `tauri.conf.json` `bundle.macOS` (entitlements + `signingIdentity`) +
+      `entitlements.plist` (hardened runtime: disable library validation for the bundled
+      native dylibs) + `docs/PACKAGING.md` runbook. Needs Rust + an Apple Developer cert
+      (neither present here). *Done when:* a signed, notarized `.dmg` launches on a clean Mac.
+- [x] End-to-end benchmark harness (`scripts/bench_e2e.py`) — real ingest, `e2e_ingest` +
+      `peak_rss` + `search_p95_full`, logged to `benchmarks` (phase 6). Smoke-verified on a
+      synthetic set (records real, small-scale rows).
+- [ ] **(you run)** Full-scale ~100k / 500 GB run → headline numbers.
+      *Done when:* `bench_e2e.py --root <library> --embed` records `e2e_ingest`, `peak_rss`,
+      `search_p95_full` from the real run (never fabricated — CLAUDE.md #2). Then profile +
+      tune tier thresholds / batch sizes and commit them.

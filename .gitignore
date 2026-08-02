@@ -45,6 +45,9 @@ data/
 index/
 thumbnails/
 cache/
+# ...but `cache/` above targets runtime data dirs, not the backend source package.
+!backend/src/iris/cache/
+!backend/src/iris/cache/**
 
 # ---- OS / editor ----
 .DS_Store

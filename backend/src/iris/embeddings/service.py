@@ -114,6 +114,51 @@ class EmbeddingService:
     def get_rows(self, rows: list[int]) -> Vectors:
         return self._store.get_rows(rows)
 
+    def compact(self) -> dict[str, int]:
+        """Reclaim orphaned CLIP vectors and renumber ``photos.embed_row`` (ARCHITECTURE §3).
+
+        Keeps only rows referenced by a live (non-missing, embedded) photo, rewrites the
+        memmap, updates each photo's ``embed_row`` to its new index, clears dangling
+        pointers on missing photos, and rebuilds the index from the compacted store.
+        Serialized against queries by the index lock; run only when ingest is idle.
+        """
+        conn = connect(
+            self._settings.db_path, busy_timeout_ms=self._settings.sqlite_busy_timeout_ms
+        )
+        try:
+            pairs = conn.execute(
+                "SELECT embed_row, id FROM photos "
+                "WHERE embed_at IS NOT NULL AND embed_row IS NOT NULL AND missing = 0 "
+                "ORDER BY embed_row"
+            ).fetchall()
+            before = self._store.count
+            live = [int(r[0]) for r in pairs]
+            with self._lock:
+                mapping = self._store.compact(live)
+                conn.execute("BEGIN")
+                try:
+                    for old_row, photo_id in ((int(r[0]), int(r[1])) for r in pairs):
+                        conn.execute(
+                            "UPDATE photos SET embed_row = ? WHERE id = ?",
+                            (mapping[old_row], photo_id),
+                        )
+                    # Drop pointers left dangling on soft-deleted photos.
+                    conn.execute(
+                        "UPDATE photos SET embed_row = NULL "
+                        "WHERE missing = 1 AND embed_row IS NOT NULL"
+                    )
+                    conn.execute("COMMIT")
+                except Exception:
+                    conn.execute("ROLLBACK")
+                    raise
+                self._index_ready = False
+                self._load_or_rebuild()
+                self._index.save(self._index_path)
+            after = self._store.count
+        finally:
+            conn.close()
+        return {"before": before, "after": after, "reclaimed": before - after}
+
 
 def open_readonly_conn(settings: Settings) -> sqlite3.Connection:
     """Convenience for callers needing a short-lived DB connection."""

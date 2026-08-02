@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
+from iris import cache
 from iris.config import Settings
 from iris.db import photos as photos_db
 from iris.dependencies import DbDep
@@ -78,6 +80,38 @@ def get_thumb(photo_id: int, request: Request, db: DbDep) -> FileResponse:
     path = content_shard_path(settings.thumbs_dir, digest, "webp")
     if not path.exists():
         raise HTTPException(status_code=404, detail="thumbnail file missing")
+    return FileResponse(
+        path,
+        media_type="image/webp",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+@router.get("/preview/{photo_id}")
+def get_preview(photo_id: int, request: Request, db: DbDep) -> FileResponse:
+    """Larger (1024 px) preview, rendered on demand from the original and LRU-cached.
+
+    Reads the source read-only (never mutates originals). Falls back to nothing if the
+    original is gone or unreadable.
+    """
+    settings: Settings = request.app.state.settings
+    row = photos_db.get_photo(db, photo_id)
+    if row is None or row["missing"] or not row["content_hash"]:
+        raise HTTPException(status_code=404, detail="no preview")
+    src = Path(row["path"])
+    if not src.exists():
+        raise HTTPException(status_code=404, detail="source file missing")
+    try:
+        path = cache.ensure_preview(
+            settings.previews_dir,
+            row["content_hash"],
+            src,
+            max_edge=settings.preview_max_edge,
+            quality=settings.preview_quality,
+            cap_bytes=int(settings.preview_cache_gb * 1024**3),
+        )
+    except Exception as exc:  # unreadable/corrupt source — don't 500
+        raise HTTPException(status_code=404, detail="preview render failed") from exc
     return FileResponse(
         path,
         media_type="image/webp",

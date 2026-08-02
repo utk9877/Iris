@@ -73,6 +73,10 @@ class VectorIndex:
         return self._index.get_current_count() if self._ready else 0
 
     def save(self, path: Path) -> None:
+        # hnswlib segfaults if save_index runs before init_index (an empty index — e.g.
+        # after compacting away every vector). Nothing to persist in that case.
+        if not self._ready:
+            return
         path.parent.mkdir(parents=True, exist_ok=True)
         self._index.save_index(str(path))
 
