@@ -46,8 +46,9 @@ index/
 thumbnails/
 cache/
 # ...but `cache/` above targets runtime data dirs, not the backend source package.
+# Un-ignore only the Python source, so `__pycache__/` (rule above) still applies.
 !backend/src/iris/cache/
-!backend/src/iris/cache/**
+!backend/src/iris/cache/*.py
 
 # ---- OS / editor ----
 .DS_Store
