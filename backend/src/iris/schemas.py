@@ -100,6 +100,21 @@ class PhotoCount(BaseModel):
     count: int
 
 
+class PhotoLocation(BaseModel):
+    """The original file's real location on disk (for reveal / copy-path / sharing)."""
+
+    id: int
+    path: str
+    dir: str
+    filename: str
+    exists: bool  # the source file is still present on disk
+
+
+class RevealResponse(BaseModel):
+    ok: bool
+    path: str
+
+
 # --- Search (ARCHITECTURE §4/§8) ---
 
 
