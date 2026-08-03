@@ -19,6 +19,14 @@ export type Photo = {
 
 export type PhotoPage = { items: Photo[]; next_cursor: string | null };
 
+export type PhotoLocation = {
+  id: number;
+  path: string;
+  dir: string;
+  filename: string;
+  exists: boolean;
+};
+
 export type SearchItem = Photo & { score: number };
 
 export type SearchFilters = {
@@ -214,6 +222,9 @@ export function makeApi(baseUrl: string) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ limit: 60, ...req }),
       }),
+    photoLocation: (id: number) => json<PhotoLocation>(`/photos/${id}/location`),
+    revealPhoto: (id: number) =>
+      json<{ ok: boolean; path: string }>(`/photos/${id}/reveal`, { method: "POST" }),
     storage: () => json<StorageStats>("/maintenance/storage"),
     compact: () => json<CompactResponse>("/maintenance/compact", { method: "POST" }),
     thumbUrl: (id: number) => `${baseUrl}/thumb/${id}`,

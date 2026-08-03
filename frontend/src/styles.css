@@ -409,6 +409,7 @@ body {
   display: grid;
 }
 .cell {
+  position: relative;
   height: 168px;
   border-radius: 6px;
   overflow: hidden;
@@ -416,6 +417,49 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.cell-actions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.cell:hover .cell-actions,
+.cell:focus-within .cell-actions {
+  opacity: 1;
+}
+.cell-action {
+  flex: 1;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #111;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cell-action:hover {
+  background: #fff;
+}
+.cell-note {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
 }
 .cell img {
   width: 100%;

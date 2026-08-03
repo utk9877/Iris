@@ -12,7 +12,8 @@ from iris import cache
 from iris.config import Settings
 from iris.db import photos as photos_db
 from iris.dependencies import DbDep
-from iris.schemas import PhotoCount, PhotoOut, PhotoPage
+from iris.reveal import reveal_in_file_manager
+from iris.schemas import PhotoCount, PhotoLocation, PhotoOut, PhotoPage, RevealResponse
 from iris.storage import content_shard_path
 
 router = APIRouter(tags=["photos"])
@@ -69,6 +70,38 @@ def get_photo(photo_id: int, db: DbDep) -> dict[str, Any]:
     if row is None:
         raise HTTPException(status_code=404, detail="photo not found")
     return row
+
+
+@router.get("/photos/{photo_id}/location", response_model=PhotoLocation)
+def get_location(photo_id: int, db: DbDep) -> PhotoLocation:
+    """The original file's real path on disk — for copy-path / reveal / sharing."""
+    row = photos_db.get_photo(db, photo_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="photo not found")
+    path = Path(row["path"])
+    return PhotoLocation(
+        id=photo_id,
+        path=str(path),
+        dir=str(row["dir"]),
+        filename=str(row["filename"]),
+        exists=path.exists(),
+    )
+
+
+@router.post("/photos/{photo_id}/reveal", response_model=RevealResponse)
+def reveal_photo(photo_id: int, db: DbDep) -> RevealResponse:
+    """Reveal the original file in the OS file manager (Finder/Explorer). Read-only."""
+    row = photos_db.get_photo(db, photo_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="photo not found")
+    path = Path(row["path"])
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="source file missing")
+    try:
+        reveal_in_file_manager(path)
+    except Exception as exc:  # launcher missing / non-zero exit
+        raise HTTPException(status_code=500, detail=f"could not reveal file: {exc}") from exc
+    return RevealResponse(ok=True, path=str(path))
 
 
 @router.get("/thumb/{photo_id}")

@@ -37,7 +37,34 @@ function useInfinitePhotos(api: Api, reloadKey: number) {
 
 function Cell({ api, photo }: { api: Api; photo: Photo }) {
   const [failed, setFailed] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
   const showThumb = photo.has_thumb && !failed;
+
+  const flash = (msg: string) => {
+    setNote(msg);
+    window.setTimeout(() => setNote((cur) => (cur === msg ? null : cur)), 1600);
+  };
+
+  const reveal = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await api.revealPhoto(photo.id);
+    } catch {
+      flash("file not found");
+    }
+  };
+
+  const copyPath = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const loc = await api.photoLocation(photo.id);
+      await navigator.clipboard.writeText(loc.path);
+      flash("path copied");
+    } catch {
+      flash("copy failed");
+    }
+  };
+
   return (
     <div className="cell" title={photo.filename}>
       {showThumb ? (
@@ -50,6 +77,15 @@ function Cell({ api, photo }: { api: Api; photo: Photo }) {
       ) : (
         <span className="cell-fallback">{photo.filename}</span>
       )}
+      <div className="cell-actions">
+        <button className="cell-action" onClick={reveal} title="Reveal original in Finder">
+          📂 Reveal
+        </button>
+        <button className="cell-action" onClick={copyPath} title="Copy file path">
+          ⧉ Copy path
+        </button>
+      </div>
+      {note && <span className="cell-note">{note}</span>}
     </div>
   );
 }
